@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card, Input, Button } from './ui-base';
-import { generateLoanSchedule, formatCurrency, formatDecimal, LoanSchedule } from '../utils/finance';
-import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, Legend, BarChart, Bar } from 'recharts';
-import { Download, Table as TableIcon, TrendingDown } from 'lucide-react';
+import { generateLoanSchedule, formatCurrency, formatDecimal } from '../utils/finance';
+import { ResponsiveContainer, BarChart, Bar, Cell, XAxis, YAxis, Tooltip } from 'recharts';
+import { Download, TrendingDown } from 'lucide-react';
 
 export default function LoanCalculator({ currency, rate }: any) {
     const [amount, setAmount] = useState(5000000); // 50 Lakhs

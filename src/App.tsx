@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import LoanCalculator from './components/LoanCalculator';
 import FDCalculator from './components/FDCalculator';
 import { Card, Button, Input } from './components/ui-base';
-import { LayoutDashboard, PiggyBank, Scale, Bot, Settings, IndianRupee, Euro } from 'lucide-react';
-import { formatCurrency, calculateEMI, calculateFD } from './utils/finance';
+import { LayoutDashboard, PiggyBank, Scale, Bot } from 'lucide-react';
+import { formatCurrency, calculateFD } from './utils/finance';
 
 function App() {
     const [view, setView] = useState<'loan' | 'fd' | 'compare' | 'ai'>('loan');

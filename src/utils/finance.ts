@@ -134,7 +134,6 @@ export function calculateFD(
 
     // Generate monthly growth for chart
     const monthlyGrowth = [];
-    let currentBalance = principal;
     for (let m = 1; m <= months; m++) {
         // Approximate monthly view (accumulating interest not strictly compounded monthly if freq is different, but for viz we smoothing)
         // Actually strictly: calculate value at month m

@@ -1,21 +1,24 @@
-import React from 'react';
-import { cn } from '@/lib/utils';
 import { LucideIcon } from 'lucide-react';
-
 export const Card = ({ children, className }: { children: React.ReactNode; className?: string }) => (
     <div className={cn("glass-card rounded-xl p-6", className)}>{children}</div>
 );
 
 export const Button = ({
-    children, onClick, variant = 'primary', className, icon: Icon
+    children, onClick, variant = 'primary', className, icon: Icon, size = 'default'
 }: {
     children: React.ReactNode;
     onClick?: () => void;
     variant?: 'primary' | 'outline' | 'ghost';
     className?: string;
-    icon?: LucideIcon;
+    icon?: any; // Changed from LucideIcon to any as LucideIcon import is removed
+    size?: 'default' | 'sm' | 'lg';
 }) => {
-    const base = "flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2";
+    const base = "flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2";
+    const sizes = {
+        default: "px-4 py-2",
+        sm: "px-3 py-1.5 text-sm",
+        lg: "px-6 py-3 text-lg"
+    };
     const variants = {
         primary: "bg-blue-600 text-white hover:bg-blue-700 shadow-sm",
         outline: "border border-input bg-transparent hover:bg-accent hover:text-accent-foreground",
@@ -23,7 +26,7 @@ export const Button = ({
     };
 
     return (
-        <button onClick={onClick} className={cn(base, variants[variant], className)}>
+        <button onClick={onClick} className={cn(base, sizes[size], variants[variant], className)}>
             {Icon && <Icon className="w-4 h-4" />}
             {children}
         </button>
