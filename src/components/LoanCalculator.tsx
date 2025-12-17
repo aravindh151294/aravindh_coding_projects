@@ -1,145 +1,339 @@
-import { useState } from 'react';
-import { Card, Input, Button } from './ui-base';
-import { generateLoanSchedule, formatCurrency, formatDecimal } from '../utils/finance';
-import { ResponsiveContainer, BarChart, Bar, Cell, XAxis, YAxis, Tooltip } from 'recharts';
-import { Download, TrendingDown } from 'lucide-react';
 
-export default function LoanCalculator({ currency, rate }: any) {
-    const [amount, setAmount] = useState(5000000); // 50 Lakhs
-    const [interest, setInterest] = useState(8.5);
-    const [term, setTerm] = useState(240); // 20 Years in months
+import { Download } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
-    // Scenario B: Bulk Prepayment
-    const [prepayAmount, setPrepayAmount] = useState(100000);
-    const [prepayMonth, setPrepayMonth] = useState(12);
-    const [prepayPenalty, setPrepayPenalty] = useState(0);
+interface LoanCalculatorProps {
+    loanAmount: number;
+    setLoanAmount: (val: number) => void;
+    loanRate: number;
+    setLoanRate: (val: number) => void;
+    loanTerm: number;
+    setLoanTerm: (val: number) => void;
+    bulkPrepayment: number;
+    setBulkPrepayment: (val: number) => void;
+    prepaymentMonth: number;
+    setPrepaymentMonth: (val: number) => void;
+    prepaymentPenalty: number;
+    setPrepaymentPenalty: (val: number) => void;
+    extraMonthly: number;
+    setExtraMonthly: (val: number) => void;
+    extraMonthlyTiming: string;
+    setExtraMonthlyTiming: (val: string) => void;
+    currentEMI: number;
+    scenarioA: any;
+    scenarioB: any;
+    scenarioC: any;
+    eurToInr: number;
+}
 
-    // Scenario C: Aggressive
-    const [extraMonthly, setExtraMonthly] = useState(5000);
+const LoanCalculator = ({
+    loanAmount, setLoanAmount, loanRate, setLoanRate, loanTerm, setLoanTerm,
+    bulkPrepayment, setBulkPrepayment, prepaymentMonth, setPrepaymentMonth,
+    prepaymentPenalty, setPrepaymentPenalty, extraMonthly, setExtraMonthly,
+    extraMonthlyTiming, setExtraMonthlyTiming,
+    currentEMI, scenarioA, scenarioB, scenarioC, eurToInr
+}: LoanCalculatorProps) => {
 
-    const [activeTab, setActiveTab] = useState<'chart' | 'table'>('chart');
+    const exportToCSV = (scenario: any, name: string) => {
+        const headers = ['Month', 'EMI', 'Extra Monthly', 'Bulk Payment', 'Penalty', 'Total Payment', 'Principal', 'Interest', 'Balance EUR', 'Balance INR'];
+        const rows = scenario.schedule.map((row: any) => [
+            row.month,
+            row.emi.toFixed(2),
+            row.extraMonthly.toFixed(2),
+            row.bulkPayment.toFixed(2),
+            row.penalty.toFixed(2),
+            row.payment.toFixed(2),
+            row.principal.toFixed(2),
+            row.interest.toFixed(2),
+            row.balance.toFixed(2),
+            (row.balance * eurToInr).toFixed(2)
+        ]);
 
-    // Calculations
-    const scenarioA = generateLoanSchedule(amount, interest, term, 'A');
-    const scenarioB = generateLoanSchedule(amount, interest, term, 'B', [{ date: prepayMonth, amount: prepayAmount }], 0, prepayPenalty);
-    const scenarioC = generateLoanSchedule(amount, interest, term, 'C', [], extraMonthly);
-
-    // Comparison Data
-    const comparisonData = [
-        { name: 'Original', interest: scenarioA.totalInterest, color: '#ef4444' },
-        { name: 'With Bulk Pay', interest: scenarioB.totalInterest, color: '#f59e0b' },
-        { name: 'Aggressive', interest: scenarioC.totalInterest, color: '#10b981' },
-    ];
-
-    const exportCSV = () => {
-        const headers = "Month,Principal,Interest,Balance,Total Payment\n";
-        const rows = scenarioA.monthlyData.map(r =>
-            `${r.month},${r.principal.toFixed(2)},${r.interest.toFixed(2)},${r.balance.toFixed(2)},${r.payment.toFixed(2)}`
-        ).join("\n");
-        const blob = new Blob([headers + rows], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
+        const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = "loan_schedule.csv";
+        a.download = `${name}-schedule.csv`;
         a.click();
     };
 
     return (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="md:col-span-1 space-y-4">
-                    <h3 className="font-semibold text-lg flex items-center gap-2"><TrendingDown className="w-5 h-5 text-blue-500" /> Loan Details</h3>
-                    <Input label="Loan Amount" value={amount} onChange={(v: any) => setAmount(Number(v))} suffix={currency} />
-                    <Input label="Interest Rate" value={interest} onChange={(v: any) => setInterest(Number(v))} suffix="%" step="0.1" />
-                    <Input label="Tenure (Months)" value={term} onChange={(v: any) => setTerm(Number(v))} suffix="mo" />
+        <div className="space-y-6">
+            <h2 className="text-3xl font-bold text-gray-800 mb-6">Loan Calculator</h2>
 
-                    <div className="pt-4 border-t">
-                        <h4 className="text-sm font-semibold mb-2">Scenario B: Bulk Prepayment</h4>
-                        <Input label="Amount" value={prepayAmount} onChange={(v: any) => setPrepayAmount(Number(v))} suffix={currency} />
-                        <Input label="At Month" value={prepayMonth} onChange={(v: any) => setPrepayMonth(Number(v))} suffix="mo" />
-                        <Input label="Penalty" value={prepayPenalty} onChange={(v: any) => setPrepayPenalty(Number(v))} suffix="%" />
+            {/* Input Form */}
+            <div className="bg-white rounded-lg p-6 shadow-md border">
+                <h3 className="text-xl font-semibold mb-4 text-gray-800">Loan Details</h3>
+                <div className="grid md:grid-cols-3 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Loan Amount (€)
+                        </label>
+                        <input
+                            type="number"
+                            value={loanAmount}
+                            onChange={(e) => setLoanAmount(Number(e.target.value))}
+                            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
                     </div>
-
-                    <div className="pt-4 border-t">
-                        <h4 className="text-sm font-semibold mb-2">Scenario C: Extra Monthly</h4>
-                        <Input label="Extra EMI" value={extraMonthly} onChange={(v: any) => setExtraMonthly(Number(v))} suffix={currency} />
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Interest Rate (% p.a.)
+                        </label>
+                        <input
+                            type="number"
+                            value={loanRate}
+                            onChange={(e) => setLoanRate(Number(e.target.value))}
+                            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            step="0.1"
+                        />
                     </div>
-                </Card>
-
-                <div className="md:col-span-2 space-y-6">
-                    {/* Summary Cards */}
-                    <div className="grid grid-cols-3 gap-4">
-                        <Card className="bg-blue-50/50 dark:bg-blue-900/10 border-blue-100">
-                            <div className="text-xs text-muted-foreground uppercase tracking-wider">Regular EMI</div>
-                            <div className="text-xl font-bold text-blue-600 mt-1">
-                                {formatCurrency(scenarioA.monthlyData[0]?.payment || 0, currency, rate)}
-                            </div>
-                        </Card>
-                        <Card className="bg-green-50/50 dark:bg-green-900/10 border-green-100">
-                            <div className="text-xs text-muted-foreground uppercase tracking-wider">Interest Saved (Aggressive)</div>
-                            <div className="text-xl font-bold text-green-600 mt-1">
-                                {formatCurrency(scenarioA.totalInterest - scenarioC.totalInterest, currency, rate)}
-                            </div>
-                        </Card>
-                        <Card className="bg-amber-50/50 dark:bg-amber-900/10 border-amber-100">
-                            <div className="text-xs text-muted-foreground uppercase tracking-wider">Time Saved (Aggressive)</div>
-                            <div className="text-xl font-bold text-amber-600 mt-1">
-                                {scenarioA.monthlyData.length - scenarioC.monthlyData.length} mo
-                            </div>
-                        </Card>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Loan Term (Months)
+                        </label>
+                        <input
+                            type="number"
+                            value={loanTerm}
+                            onChange={(e) => setLoanTerm(Number(e.target.value))}
+                            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">{(loanTerm / 12).toFixed(1)} years</p>
                     </div>
-
-                    <Card className="h-[400px] flex flex-col">
-                        <div className="flex justify-between items-center mb-4">
-                            <div className="flex gap-2">
-                                <Button variant={activeTab === 'chart' ? 'primary' : 'ghost'} onClick={() => setActiveTab('chart')} size="sm">Chart</Button>
-                                <Button variant={activeTab === 'table' ? 'primary' : 'ghost'} onClick={() => setActiveTab('table')} size="sm">Table</Button>
-                            </div>
-                            <Button variant="outline" onClick={exportCSV} icon={Download} size="sm">Export</Button>
-                        </div>
-
-                        {activeTab === 'chart' ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={comparisonData}>
-                                    <XAxis dataKey="name" />
-                                    <YAxis />
-                                    <Tooltip formatter={(value: number) => formatCurrency(value, currency, rate)} />
-                                    <Bar dataKey="interest" name="Total Interest Paid">
-                                        {comparisonData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.color} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        ) : (
-                            <div className="overflow-auto flex-1">
-                                <table className="w-full text-sm">
-                                    <thead className="text-xs text-muted-foreground bg-muted/50 sticky top-0">
-                                        <tr>
-                                            <th className="p-2 text-left">Month</th>
-                                            <th className="p-2 text-right">EMI</th>
-                                            <th className="p-2 text-right">Principal</th>
-                                            <th className="p-2 text-right">Interest</th>
-                                            <th className="p-2 text-right">Balance</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {scenarioA.monthlyData.map((row) => (
-                                            <tr key={row.month} className="border-b border-border/50 hover:bg-muted/50">
-                                                <td className="p-2">{row.month}</td>
-                                                <td className="p-2 text-right">{formatDecimal(row.payment)}</td>
-                                                <td className="p-2 text-right">{formatDecimal(row.principal)}</td>
-                                                <td className="p-2 text-right">{formatDecimal(row.interest)}</td>
-                                                <td className="p-2 text-right">{formatDecimal(row.balance)}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </Card>
                 </div>
+
+                <h3 className="text-xl font-semibold mt-6 mb-4 text-gray-800">Prepayment Options</h3>
+                <div className="grid md:grid-cols-4 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Bulk Prepayment (€)
+                        </label>
+                        <input
+                            type="number"
+                            value={bulkPrepayment}
+                            onChange={(e) => setBulkPrepayment(Number(e.target.value))}
+                            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Prepayment Month
+                        </label>
+                        <input
+                            type="number"
+                            value={prepaymentMonth}
+                            onChange={(e) => setPrepaymentMonth(Number(e.target.value))}
+                            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Penalty (%)
+                        </label>
+                        <input
+                            type="number"
+                            value={prepaymentPenalty}
+                            onChange={(e) => setPrepaymentPenalty(Number(e.target.value))}
+                            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            step="0.1"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Extra Monthly (€)
+                        </label>
+                        <input
+                            type="number"
+                            value={extraMonthly}
+                            onChange={(e) => setExtraMonthly(Number(e.target.value))}
+                            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                    </div>
+                </div>
+
+                <div className="mt-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Extra Monthly Payment Timing
+                    </label>
+                    <div className="flex flex-wrap gap-3">
+                        {[
+                            { value: 'none', label: 'None', color: 'gray' },
+                            { value: 'before', label: 'Before Bulk Prepayment', color: 'blue' },
+                            { value: 'after', label: 'After Bulk Prepayment', color: 'green' },
+                            { value: 'both', label: 'Throughout Loan', color: 'purple' }
+                        ].map(option => (
+                            <button
+                                key={option.value}
+                                onClick={() => setExtraMonthlyTiming(option.value)}
+                                className={`px-4 py-2 rounded-lg font-medium transition-colors ${extraMonthlyTiming === option.value
+                                    ? `bg-${option.color}-500 text-white`
+                                    : `bg-${option.color}-100 text-${option.color}-700 hover:bg-${option.color}-200`
+                                    }`}
+                            >
+                                {option.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            {/* Scenario Comparison */}
+            <div className="grid md:grid-cols-3 gap-6">
+                {[
+                    { name: 'Scenario A', data: scenarioA, desc: 'Original Schedule', color: 'blue' },
+                    { name: 'Scenario B', data: scenarioB, desc: 'With Bulk Prepayment', color: 'green' },
+                    { name: 'Scenario C', data: scenarioC, desc: 'Aggressive Repayment', color: 'purple' }
+                ].map(scenario => (
+                    <div key={scenario.name} className={`bg-gradient-to-br from-${scenario.color}-50 to-${scenario.color}-100 rounded-lg p-6 border-2 border-${scenario.color}-200`}>
+                        <h3 className="text-xl font-bold text-gray-800 mb-2">{scenario.name}</h3>
+                        <p className="text-sm text-gray-600 mb-4">{scenario.desc}</p>
+                        <div className="space-y-3">
+                            <div>
+                                <p className="text-sm text-gray-600">Monthly EMI</p>
+                                <p className="text-2xl font-bold text-gray-800">
+                                    €{currentEMI.toFixed(2)}
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-sm text-gray-600">Total Interest</p>
+                                <p className="text-xl font-bold text-gray-800">€{scenario.data.totalInterest.toFixed(2)}</p>
+                                <p className="text-xs text-gray-500">₹{(scenario.data.totalInterest * eurToInr).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
+                            </div>
+                            {scenario.data.totalPenalty > 0 && (
+                                <div>
+                                    <p className="text-sm text-gray-600">Penalty</p>
+                                    <p className="text-lg font-semibold text-red-600">€{scenario.data.totalPenalty.toFixed(2)}</p>
+                                </div>
+                            )}
+                            <div>
+                                <p className="text-sm text-gray-600">Total Payment</p>
+                                <p className="text-xl font-bold text-gray-800">€{scenario.data.totalPayment.toFixed(2)}</p>
+                                <p className="text-xs text-gray-500">₹{(scenario.data.totalPayment * eurToInr).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
+                            </div>
+                            <div>
+                                <p className="text-sm text-gray-600">Loan Duration</p>
+                                <p className="text-lg font-semibold text-gray-800">
+                                    {Math.floor(scenario.data.actualTerm / 12)} years {scenario.data.actualTerm % 12} months
+                                </p>
+                            </div>
+                            {scenario.name !== 'Scenario A' && (
+                                <div className="pt-3 border-t border-gray-300">
+                                    <p className="text-sm text-gray-600">Savings vs Scenario A</p>
+                                    <p className="text-xl font-bold text-green-600">
+                                        €{(scenarioA.totalInterest - scenario.data.totalInterest).toFixed(2)}
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                        ₹{((scenarioA.totalInterest - scenario.data.totalInterest) * eurToInr).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                                    </p>
+                                    <p className="text-xs text-gray-600 mt-1 italic">
+                                        Net savings after deducting penalties
+                                    </p>
+                                </div>
+                            )}
+                            <button
+                                onClick={() => exportToCSV(scenario.data, scenario.name)}
+                                className={`w-full mt-3 flex items-center justify-center gap-2 px-4 py-2 bg-${scenario.color}-600 text-white rounded-lg hover:bg-${scenario.color}-700 transition-colors`}
+                            >
+                                <Download size={16} />
+                                Export CSV
+                            </button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Detailed Schedule Tables */}
+            {[
+                { name: 'Scenario A', data: scenarioA, color: 'blue' },
+                { name: 'Scenario B', data: scenarioB, color: 'green' },
+                { name: 'Scenario C', data: scenarioC, color: 'purple' }
+            ].map(scenario => (
+                <div key={scenario.name} className="bg-white rounded-lg p-6 shadow-md border">
+                    <h3 className="text-xl font-bold text-gray-800 mb-4">{scenario.name} - Detailed Schedule</h3>
+                    <div className="overflow-x-auto max-h-96 overflow-y-auto">
+                        <table className="w-full text-sm">
+                            <thead className="bg-gray-100 sticky top-0">
+                                <tr>
+                                    <th className="px-3 py-2 text-left">Month</th>
+                                    <th className="px-3 py-2 text-right">EMI</th>
+                                    <th className="px-3 py-2 text-right">Extra</th>
+                                    <th className="px-3 py-2 text-right">Bulk</th>
+                                    {scenario.data.totalPenalty > 0 && <th className="px-3 py-2 text-right">Penalty</th>}
+                                    <th className="px-3 py-2 text-right">Total Payment</th>
+                                    <th className="px-3 py-2 text-right">Principal</th>
+                                    <th className="px-3 py-2 text-right">Interest</th>
+                                    <th className="px-3 py-2 text-right">Balance (€)</th>
+                                    <th className="px-3 py-2 text-right">Balance (₹)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {scenario.data.schedule.map((row: any, idx: number) => (
+                                    <tr key={idx} className={idx % 2 === 0 ? 'bg-gray-50' : ''}>
+                                        <td className="px-3 py-2">{row.month}</td>
+                                        <td className="px-3 py-2 text-right">€{row.emi.toFixed(2)}</td>
+                                        <td className="px-3 py-2 text-right">€{row.extraMonthly.toFixed(2)}</td>
+                                        <td className="px-3 py-2 text-right">€{row.bulkPayment.toFixed(2)}</td>
+                                        {scenario.data.totalPenalty > 0 && (
+                                            <td className="px-3 py-2 text-right text-red-600">€{row.penalty.toFixed(2)}</td>
+                                        )}
+                                        <td className="px-3 py-2 text-right font-semibold">€{row.payment.toFixed(2)}</td>
+                                        <td className="px-3 py-2 text-right">€{row.principal.toFixed(2)}</td>
+                                        <td className="px-3 py-2 text-right">€{row.interest.toFixed(2)}</td>
+                                        <td className="px-3 py-2 text-right font-medium">€{row.balance.toFixed(2)}</td>
+                                        <td className="px-3 py-2 text-right text-gray-600">₹{(row.balance * eurToInr).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            ))}
+
+            {/* Chart */}
+            <div className="bg-white rounded-lg p-6 shadow-md border">
+                <h3 className="text-xl font-bold text-gray-800 mb-4">Balance Comparison Over Time</h3>
+                <ResponsiveContainer width="100%" height={400}>
+                    <LineChart>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis
+                            dataKey="month"
+                            type="number"
+                            domain={[0, Math.max(scenarioA.actualTerm, scenarioB.actualTerm, scenarioC.actualTerm)]}
+                            label={{ value: 'Month', position: 'insideBottom', offset: -5 }}
+                        />
+                        <YAxis label={{ value: 'Balance (€)', angle: -90, position: 'insideLeft' }} />
+                        <Tooltip formatter={(value: number) => `€${value.toFixed(2)}`} />
+                        <Legend />
+                        <Line
+                            data={scenarioA.schedule}
+                            type="monotone"
+                            dataKey="balance"
+                            stroke="#3b82f6"
+                            name="Scenario A"
+                            strokeWidth={2}
+                        />
+                        <Line
+                            data={scenarioB.schedule}
+                            type="monotone"
+                            dataKey="balance"
+                            stroke="#10b981"
+                            name="Scenario B"
+                            strokeWidth={2}
+                        />
+                        <Line
+                            data={scenarioC.schedule}
+                            type="monotone"
+                            dataKey="balance"
+                            stroke="#8b5cf6"
+                            name="Scenario C"
+                            strokeWidth={2}
+                        />
+                    </LineChart>
+                </ResponsiveContainer>
             </div>
         </div>
     );
-}
+};
+
+export default LoanCalculator;
