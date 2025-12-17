@@ -1,4 +1,6 @@
-import { LucideIcon } from 'lucide-react';
+import React from 'react';
+import { cn } from '@/lib/utils';
+
 export const Card = ({ children, className }: { children: React.ReactNode; className?: string }) => (
     <div className={cn("glass-card rounded-xl p-6", className)}>{children}</div>
 );
@@ -10,7 +12,7 @@ export const Button = ({
     onClick?: () => void;
     variant?: 'primary' | 'outline' | 'ghost';
     className?: string;
-    icon?: any; // Changed from LucideIcon to any as LucideIcon import is removed
+    icon?: any;
     size?: 'default' | 'sm' | 'lg';
 }) => {
     const base = "flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2";
