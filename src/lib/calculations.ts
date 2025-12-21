@@ -237,17 +237,30 @@ export function calculateFDMaturity(
       growthData.push({ month: m, amount: Math.round(amount * 100) / 100 });
     }
   } else {
-    // Periodic payout FD: Interest is paid out periodically, principal stays same
+    // Periodic payout FD: Interest is compounded within the payout period and then paid out
     const payoutFrequency = payoutFrequencyMap[payoutType];
-    const interestPerYear = principal * r;
-    periodicPayout = Math.round(interestPerYear / payoutFrequency * 100) / 100;
-    totalInterest = Math.round(interestPerYear * t * 100) / 100;
+
+    // Compounding periods per payout period
+    // e.g. compounding = monthly (12), payout = quarterly (4) -> 3 compounding periods per payout
+    const n_p = n / payoutFrequency;
+
+    // Calculate effective rate for the payout period
+    // If n_p < 1 (e.g. payout monthly (12), compounding yearly (1)), this correctly handles geometric mean equivalent
+    const effectivePayoutRate = Math.pow(1 + r / n, n_p) - 1;
+
+    periodicPayout = Math.round(principal * effectivePayoutRate * 100) / 100;
+
+    // Total interest is simply periodic payout * number of payouts
+    const numberOfPayouts = t * payoutFrequency;
+    totalInterest = periodicPayout * numberOfPayouts;
     maturityAmount = principal; // Only principal returned at maturity
 
     // Generate monthly growth data (shows accumulated payouts + principal)
+    // We assume payouts accumulate linearly in the growth chart for simplicity of visualization
     for (let m = 0; m <= months; m++) {
       const currentT = m / 12;
-      const accumulatedPayouts = interestPerYear * currentT;
+      // Approximate accumulated value for visualization
+      const accumulatedPayouts = totalInterest * (m / months);
       growthData.push({ month: m, amount: Math.round((principal + accumulatedPayouts) * 100) / 100 });
     }
   }
