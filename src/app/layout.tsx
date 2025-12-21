@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Navigation } from "@/components/Navigation";
 import { AIInsightsWrapper } from "@/components/AIInsightsWrapper";
+import { Providers } from "@/components/Providers";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -39,14 +40,17 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
       <body className={`${inter.variable} antialiased`}>
-        <Navigation />
-        <main className="pt-4 pb-24 md:pt-20 md:pb-8 px-4 min-h-screen">
-          <div className="max-w-7xl mx-auto">
-            {children}
-          </div>
-        </main>
-        <AIInsightsWrapper />
+        <Providers>
+          <Navigation />
+          <main className="pt-4 pb-24 md:pt-20 md:pb-8 px-4 min-h-screen">
+            <div className="max-w-7xl mx-auto">
+              {children}
+            </div>
+          </main>
+          <AIInsightsWrapper />
+        </Providers>
       </body>
     </html>
   );
 }
+

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
+import { useAppState } from '@/context/AppContext';
 import {
     calculateScenarioA,
     calculateScenarioB,
@@ -8,17 +9,6 @@ import {
     MonthlyScheduleEntry
 } from '@/lib/calculations';
 import { DEFAULT_LOAN } from '@/lib/constants';
-
-export interface LoanInputs {
-    principal: number;
-    annualRate: number;
-    termMonths: number;
-    prepaymentAmount: number;
-    prepaymentMonth: number;
-    penaltyRate: number;
-    extraMonthlyPayment: number;
-    extraPaymentTiming: 'before' | 'after' | 'both';
-}
 
 export interface ScenarioResult {
     schedule: MonthlyScheduleEntry[];
@@ -30,23 +20,14 @@ export interface ScenarioResult {
 }
 
 export function useLoanCalculator() {
-    const [inputs, setInputs] = useState<LoanInputs>({
-        principal: DEFAULT_LOAN.principal,
-        annualRate: DEFAULT_LOAN.annualRate,
-        termMonths: DEFAULT_LOAN.termMonths,
-        prepaymentAmount: DEFAULT_LOAN.prepaymentAmount,
-        prepaymentMonth: DEFAULT_LOAN.prepaymentMonth,
-        penaltyRate: DEFAULT_LOAN.penaltyRate,
-        extraMonthlyPayment: DEFAULT_LOAN.extraMonthlyPayment,
-        extraPaymentTiming: 'both',
-    });
+    const { loan, setLoan, currency, setCurrency } = useAppState();
 
-    const updateInput = <K extends keyof LoanInputs>(key: K, value: LoanInputs[K]) => {
-        setInputs(prev => ({ ...prev, [key]: value }));
+    const updateInput = <K extends keyof typeof loan>(key: K, value: typeof loan[K]) => {
+        setLoan({ [key]: value });
     };
 
     const resetInputs = () => {
-        setInputs({
+        setLoan({
             principal: DEFAULT_LOAN.principal,
             annualRate: DEFAULT_LOAN.annualRate,
             termMonths: DEFAULT_LOAN.termMonths,
@@ -59,39 +40,39 @@ export function useLoanCalculator() {
     };
 
     const scenarioA = useMemo<ScenarioResult>(() => {
-        return calculateScenarioA(inputs.principal, inputs.annualRate, inputs.termMonths);
-    }, [inputs.principal, inputs.annualRate, inputs.termMonths]);
+        return calculateScenarioA(loan.principal, loan.annualRate, loan.termMonths);
+    }, [loan.principal, loan.annualRate, loan.termMonths]);
 
     const scenarioB = useMemo<ScenarioResult>(() => {
         return calculateScenarioB(
-            inputs.principal,
-            inputs.annualRate,
-            inputs.termMonths,
-            inputs.prepaymentAmount,
-            inputs.prepaymentMonth,
-            inputs.penaltyRate,
-            inputs.extraMonthlyPayment,
-            inputs.extraPaymentTiming
+            loan.principal,
+            loan.annualRate,
+            loan.termMonths,
+            loan.prepaymentAmount,
+            loan.prepaymentMonth,
+            loan.penaltyRate,
+            loan.extraMonthlyPayment,
+            loan.extraPaymentTiming
         );
     }, [
-        inputs.principal,
-        inputs.annualRate,
-        inputs.termMonths,
-        inputs.prepaymentAmount,
-        inputs.prepaymentMonth,
-        inputs.penaltyRate,
-        inputs.extraMonthlyPayment,
-        inputs.extraPaymentTiming
+        loan.principal,
+        loan.annualRate,
+        loan.termMonths,
+        loan.prepaymentAmount,
+        loan.prepaymentMonth,
+        loan.penaltyRate,
+        loan.extraMonthlyPayment,
+        loan.extraPaymentTiming
     ]);
 
     const scenarioC = useMemo<ScenarioResult>(() => {
         return calculateScenarioC(
-            inputs.principal,
-            inputs.annualRate,
-            inputs.termMonths,
-            inputs.extraMonthlyPayment
+            loan.principal,
+            loan.annualRate,
+            loan.termMonths,
+            loan.extraMonthlyPayment
         );
-    }, [inputs.principal, inputs.annualRate, inputs.termMonths, inputs.extraMonthlyPayment]);
+    }, [loan.principal, loan.annualRate, loan.termMonths, loan.extraMonthlyPayment]);
 
     const savings = useMemo(() => {
         const savingsB = scenarioA.totalInterest - scenarioB.totalInterest - (scenarioB.totalPenalty || 0);
@@ -100,12 +81,14 @@ export function useLoanCalculator() {
     }, [scenarioA, scenarioB, scenarioC]);
 
     return {
-        inputs,
+        inputs: loan,
         updateInput,
         resetInputs,
         scenarioA,
         scenarioB,
         scenarioC,
         savings,
+        exchangeRate: currency.eurToInr,
+        setExchangeRate: (rate: number) => setCurrency({ eurToInr: rate }),
     };
 }

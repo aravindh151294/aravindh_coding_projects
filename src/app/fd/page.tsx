@@ -68,6 +68,18 @@ export default function FDPage() {
                                 onChange={(e) => updateInput('compoundingFrequency', e.target.value as typeof inputs.compoundingFrequency)}
                                 hint={HINTS.fd.compounding}
                             />
+                            <Select
+                                label="Payout Type"
+                                options={[
+                                    { value: 'cumulative', label: 'At Maturity (Cumulative)' },
+                                    { value: 'monthly', label: 'Monthly Payout' },
+                                    { value: 'quarterly', label: 'Quarterly Payout' },
+                                    { value: 'yearly', label: 'Yearly Payout' },
+                                ]}
+                                value={inputs.payoutType}
+                                onChange={(e) => updateInput('payoutType', e.target.value as typeof inputs.payoutType)}
+                                hint="Choose between reinvesting interest (Cumulative) or getting regular payouts"
+                            />
                         </div>
                     </Card>
 
@@ -132,12 +144,21 @@ export default function FDPage() {
                             value={formatEUR(result.maturityAmount)}
                             subValue={formatINR(convertToINR(result.maturityAmount))}
                         />
-                        <StatCard
-                            label="Total Interest"
-                            value={formatEUR(result.totalInterest)}
-                            subValue={formatINR(convertToINR(result.totalInterest))}
-                            trend="up"
-                        />
+                        {inputs.payoutType === 'cumulative' ? (
+                            <StatCard
+                                label="Total Interest"
+                                value={formatEUR(result.totalInterest)}
+                                subValue={formatINR(convertToINR(result.totalInterest))}
+                                trend="up"
+                            />
+                        ) : (
+                            <StatCard
+                                label={`${inputs.payoutType.charAt(0).toUpperCase() + inputs.payoutType.slice(1)} Payout`}
+                                value={formatEUR(result.periodicPayout)}
+                                subValue={formatINR(convertToINR(result.periodicPayout))}
+                                trend="up"
+                            />
+                        )}
                         <StatCard
                             label="Effective Return"
                             value={formatPercent(result.effectiveReturn)}

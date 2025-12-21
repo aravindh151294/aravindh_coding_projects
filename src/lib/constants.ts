@@ -36,6 +36,13 @@ export const EXTRA_PAYMENT_OPTIONS = [
     { value: 'both', label: 'Throughout Loan' },
 ] as const;
 
+export const PAYOUT_OPTIONS = [
+    { value: 'cumulative', label: 'At Maturity (Cumulative)' },
+    { value: 'monthly', label: 'Monthly Payout' },
+    { value: 'quarterly', label: 'Quarterly Payout' },
+    { value: 'yearly', label: 'Yearly Payout' },
+] as const;
+
 // Helpful hints for users
 export const HINTS = {
     loan: {
