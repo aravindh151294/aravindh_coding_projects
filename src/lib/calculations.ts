@@ -286,3 +286,131 @@ export function calculateFDTax(interest: number, taxRate: number = 30): number {
 export function adjustForInflation(amount: number, years: number, inflationRate: number = 6): number {
   return Math.round(amount / Math.pow(1 + inflationRate / 100, years) * 100) / 100;
 }
+
+// ============================================
+// Portfolio / Multi-Investment Calculations
+// ============================================
+
+export interface AllocationInput {
+  amount: number;
+  percentage: number;
+  annualRate: number;
+}
+
+/**
+ * Calculate weighted average annual rate from allocations
+ */
+export function calculateWeightedAverageRate(allocations: AllocationInput[]): number {
+  const totalPercentage = allocations.reduce((sum, a) => sum + a.percentage, 0);
+  if (totalPercentage === 0) return 0;
+
+  const weightedSum = allocations.reduce((sum, a) => sum + (a.percentage * a.annualRate), 0);
+  return Math.round((weightedSum / totalPercentage) * 100) / 100;
+}
+
+/**
+ * Calculate portfolio weighted average risk (0-100 scale)
+ */
+export function calculatePortfolioRisk(
+  allocations: { percentage: number; riskScore: number }[]
+): number {
+  const totalPercentage = allocations.reduce((sum, a) => sum + a.percentage, 0);
+  if (totalPercentage === 0) return 0;
+
+  const weightedRisk = allocations.reduce((sum, a) => sum + (a.percentage * a.riskScore), 0);
+  return Math.round((weightedRisk / totalPercentage) * 100) / 100;
+}
+
+/**
+ * Calculate portfolio maturity with multiple instruments
+ * Uses weighted average rate for simplicity
+ */
+export function calculatePortfolioMaturity(
+  totalAmount: number,
+  allocations: AllocationInput[],
+  months: number,
+  compoundingFrequency: 'monthly' | 'quarterly' | 'half-yearly' | 'yearly' = 'quarterly'
+): {
+  maturityAmount: number;
+  totalInterest: number;
+  weightedRate: number;
+  growthData: { month: number; amount: number }[];
+  allocationReturns: { amount: number; interest: number }[];
+} {
+  const frequencyMap = {
+    'monthly': 12,
+    'quarterly': 4,
+    'half-yearly': 2,
+    'yearly': 1
+  };
+
+  const n = frequencyMap[compoundingFrequency];
+  const t = months / 12;
+
+  // Calculate returns for each allocation
+  const allocationReturns = allocations.map(a => {
+    const r = a.annualRate / 100;
+    const maturity = a.amount * Math.pow(1 + r / n, n * t);
+    return {
+      amount: Math.round(maturity * 100) / 100,
+      interest: Math.round((maturity - a.amount) * 100) / 100,
+    };
+  });
+
+  const maturityAmount = allocationReturns.reduce((sum, r) => sum + r.amount, 0);
+  const totalInterest = allocationReturns.reduce((sum, r) => sum + r.interest, 0);
+  const weightedRate = calculateWeightedAverageRate(allocations);
+
+  // Generate growth data using weighted average rate
+  const growthData: { month: number; amount: number }[] = [];
+  const avgR = weightedRate / 100;
+  for (let m = 0; m <= months; m++) {
+    const currentT = m / 12;
+    const amount = totalAmount * Math.pow(1 + avgR / n, n * currentT);
+    growthData.push({ month: m, amount: Math.round(amount * 100) / 100 });
+  }
+
+  return {
+    maturityAmount: Math.round(maturityAmount * 100) / 100,
+    totalInterest: Math.round(totalInterest * 100) / 100,
+    weightedRate,
+    growthData,
+    allocationReturns,
+  };
+}
+
+/**
+ * Calculate break-even point: when investment returns exceed loan interest
+ * Returns months until break-even, or -1 if never
+ */
+export function calculateBreakEvenMonth(
+  investmentAmount: number,
+  investmentRate: number,
+  loanInterestTotal: number,
+  maxMonths: number = 360
+): number {
+  const monthlyRate = investmentRate / 12 / 100;
+  let balance = investmentAmount;
+
+  for (let month = 1; month <= maxMonths; month++) {
+    balance = balance * (1 + monthlyRate);
+    const interest = balance - investmentAmount;
+    if (interest >= loanInterestTotal) {
+      return month;
+    }
+  }
+
+  return -1; // Never breaks even within maxMonths
+}
+
+/**
+ * Calculate net savings: Investment returns minus loan cost
+ */
+export function calculateNetSavings(
+  investmentReturns: number,
+  loanTotalInterest: number,
+  loanPenalty: number = 0
+): number {
+  return Math.round((investmentReturns - loanTotalInterest - loanPenalty) * 100) / 100;
+}
+

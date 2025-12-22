@@ -1,7 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { DEFAULT_LOAN, DEFAULT_FD, DEFAULT_CURRENCY } from '@/lib/constants';
+import { DEFAULT_LOAN, DEFAULT_CURRENCY } from '@/lib/constants';
+import { INVESTMENT_INSTRUMENTS } from '@/lib/riskProfiles';
 
 // Loan State
 export interface LoanState {
@@ -15,20 +16,31 @@ export interface LoanState {
     extraPaymentTiming: 'before' | 'after' | 'both';
 }
 
-// FD State
-export interface FDState {
-    principal: number;
+// Investment Allocation
+export interface InvestmentAllocation {
+    instrumentId: string;
+    amount: number;
+    percentage: number;
     annualRate: number;
+    country?: string;
+}
+
+// Investment State
+export interface InvestmentState {
+    totalAmount: number;
     termMonths: number;
+    inputMode: 'percentage' | 'amount';
+    allocations: InvestmentAllocation[];
     compoundingFrequency: 'monthly' | 'quarterly' | 'half-yearly' | 'yearly';
     payoutType: 'cumulative' | 'monthly' | 'quarterly' | 'yearly';
     taxRate: number;
     inflationRate: number;
     includeTax: boolean;
     adjustInflation: boolean;
+    linkedToLoan: boolean; // For comparison: use loan amount as investment
 }
 
-// Currency State
+// Currency State (Centralized)
 export interface CurrencyState {
     eurToInr: number;
 }
@@ -36,11 +48,15 @@ export interface CurrencyState {
 // Combined App State
 interface AppState {
     loan: LoanState;
-    fd: FDState;
+    investment: InvestmentState;
     currency: CurrencyState;
     setLoan: (loan: Partial<LoanState>) => void;
-    setFD: (fd: Partial<FDState>) => void;
+    setInvestment: (investment: Partial<InvestmentState>) => void;
     setCurrency: (currency: Partial<CurrencyState>) => void;
+    updateAllocation: (index: number, updates: Partial<InvestmentAllocation>) => void;
+    addAllocation: (instrumentId: string) => void;
+    removeAllocation: (index: number) => void;
+    recalculateAllocations: (mode: 'percentage' | 'amount', newTotal?: number) => void;
     resetAll: () => void;
 }
 
@@ -55,16 +71,25 @@ const defaultLoanState: LoanState = {
     extraPaymentTiming: 'both',
 };
 
-const defaultFDState: FDState = {
-    principal: DEFAULT_FD.principal,
-    annualRate: DEFAULT_FD.annualRate,
-    termMonths: DEFAULT_FD.termMonths,
-    compoundingFrequency: DEFAULT_FD.compoundingFrequency,
-    payoutType: 'cumulative', // Default: reinvest all interest (cumulative)
-    taxRate: DEFAULT_FD.taxRate,
-    inflationRate: DEFAULT_FD.inflationRate,
+const defaultInvestmentState: InvestmentState = {
+    totalAmount: 100000,
+    termMonths: 60,
+    inputMode: 'percentage',
+    allocations: [
+        {
+            instrumentId: 'fd',
+            amount: 100000,
+            percentage: 100,
+            annualRate: INVESTMENT_INSTRUMENTS[0].defaultRate,
+        },
+    ],
+    compoundingFrequency: 'quarterly',
+    payoutType: 'cumulative',
+    taxRate: 30,
+    inflationRate: 6,
     includeTax: false,
     adjustInflation: false,
+    linkedToLoan: false,
 };
 
 const defaultCurrencyState: CurrencyState = {
@@ -75,29 +100,97 @@ const AppContext = createContext<AppState | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
     const [loan, setLoanState] = useState<LoanState>(defaultLoanState);
-    const [fd, setFDState] = useState<FDState>(defaultFDState);
+    const [investment, setInvestmentState] = useState<InvestmentState>(defaultInvestmentState);
     const [currency, setCurrencyState] = useState<CurrencyState>(defaultCurrencyState);
 
     const setLoan = (updates: Partial<LoanState>) => {
         setLoanState(prev => ({ ...prev, ...updates }));
     };
 
-    const setFD = (updates: Partial<FDState>) => {
-        setFDState(prev => ({ ...prev, ...updates }));
+    const setInvestment = (updates: Partial<InvestmentState>) => {
+        setInvestmentState(prev => ({ ...prev, ...updates }));
     };
 
     const setCurrency = (updates: Partial<CurrencyState>) => {
         setCurrencyState(prev => ({ ...prev, ...updates }));
     };
 
+    const updateAllocation = (index: number, updates: Partial<InvestmentAllocation>) => {
+        setInvestmentState(prev => {
+            const newAllocations = [...prev.allocations];
+            newAllocations[index] = { ...newAllocations[index], ...updates };
+            return { ...prev, allocations: newAllocations };
+        });
+    };
+
+    const addAllocation = (instrumentId: string) => {
+        const instrument = INVESTMENT_INSTRUMENTS.find(i => i.id === instrumentId);
+        if (!instrument) return;
+
+        setInvestmentState(prev => ({
+            ...prev,
+            allocations: [
+                ...prev.allocations,
+                {
+                    instrumentId,
+                    amount: 0,
+                    percentage: 0,
+                    annualRate: instrument.defaultRate,
+                },
+            ],
+        }));
+    };
+
+    const removeAllocation = (index: number) => {
+        setInvestmentState(prev => ({
+            ...prev,
+            allocations: prev.allocations.filter((_, i) => i !== index),
+        }));
+    };
+
+    const recalculateAllocations = (mode: 'percentage' | 'amount', newTotal?: number) => {
+        setInvestmentState(prev => {
+            const total = newTotal ?? prev.totalAmount;
+
+            if (mode === 'percentage') {
+                // Calculate amounts from percentages
+                const newAllocations = prev.allocations.map(a => ({
+                    ...a,
+                    amount: Math.round((a.percentage / 100) * total * 100) / 100,
+                }));
+                return { ...prev, totalAmount: total, allocations: newAllocations, inputMode: mode };
+            } else {
+                // Calculate percentages from amounts
+                const sumAmounts = prev.allocations.reduce((sum, a) => sum + a.amount, 0);
+                const newAllocations = prev.allocations.map(a => ({
+                    ...a,
+                    percentage: sumAmounts > 0 ? Math.round((a.amount / sumAmounts) * 10000) / 100 : 0,
+                }));
+                return { ...prev, totalAmount: sumAmounts, allocations: newAllocations, inputMode: mode };
+            }
+        });
+    };
+
     const resetAll = () => {
         setLoanState(defaultLoanState);
-        setFDState(defaultFDState);
+        setInvestmentState(defaultInvestmentState);
         setCurrencyState(defaultCurrencyState);
     };
 
     return (
-        <AppContext.Provider value={{ loan, fd, currency, setLoan, setFD, setCurrency, resetAll }}>
+        <AppContext.Provider value={{
+            loan,
+            investment,
+            currency,
+            setLoan,
+            setInvestment,
+            setCurrency,
+            updateAllocation,
+            addAllocation,
+            removeAllocation,
+            recalculateAllocations,
+            resetAll,
+        }}>
             {children}
         </AppContext.Provider>
     );

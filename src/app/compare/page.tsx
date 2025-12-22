@@ -1,20 +1,22 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Card, CardHeader, Button, Select, Hint, StatCard, Badge } from '@/components/ui';
+import { Card, CardHeader, Toggle, Hint, StatCard, Badge } from '@/components/ui';
 import { ComparisonChart } from '@/components/charts';
 import { useLoanCalculator } from '@/hooks/useLoanCalculator';
 import { useFDCalculator } from '@/hooks/useFDCalculator';
 import { useCurrency } from '@/hooks/useCurrency';
 import { formatEUR, formatINR, formatDuration, formatPercent } from '@/lib/formatters';
+import { calculateBreakEvenMonth, calculateNetSavings } from '@/lib/calculations';
 import { HINTS } from '@/lib/constants';
 
 export default function ComparePage() {
     const { inputs: loanInputs, scenarioA, scenarioB, scenarioC, savings } = useLoanCalculator();
-    const { inputs: fdInputs, result: fdResult } = useFDCalculator();
-    const { exchangeRate, convertToINR } = useCurrency();
+    const { inputs: investmentInputs, result: investmentResult } = useFDCalculator();
+    const { convertToINR } = useCurrency();
 
     const [selectedScenario, setSelectedScenario] = useState<'B' | 'C'>('B');
+    const [linkedToLoan, setLinkedToLoan] = useState(true);
 
     const scenarios = {
         A: { name: 'Original', result: scenarioA, savings: 0 },
@@ -24,58 +26,87 @@ export default function ComparePage() {
 
     const selected = scenarios[selectedScenario];
 
-    // Calculate what if the savings were invested in FD instead
-    const fdOnSavings = useMemo(() => {
-        const savingsAmount = selected.savings;
-        if (savingsAmount <= 0) return null;
+    // Investment amount based on mode
+    const investmentAmount = linkedToLoan ? loanInputs.principal : investmentInputs.principal;
 
-        // Calculate FD return on the savings amount over the remaining loan period
-        const monthsSaved = selected.result.monthsSaved || 0;
-        const fdRate = fdInputs.annualRate / 100;
-        const years = (loanInputs.termMonths - monthsSaved) / 12;
-
-        // Compound interest on savings
-        const fdReturn = savingsAmount * Math.pow(1 + fdRate / 4, 4 * years);
-        const fdInterest = fdReturn - savingsAmount;
-
+    // Calculate investment returns for the investment amount over loan term
+    const investmentReturns = useMemo(() => {
+        const rate = investmentResult.weightedRate / 100;
+        const years = loanInputs.termMonths / 12;
+        const n = 4; // quarterly compounding
+        const maturity = investmentAmount * Math.pow(1 + rate / n, n * years);
         return {
-            principal: savingsAmount,
-            maturity: fdReturn,
-            interest: fdInterest,
+            principal: investmentAmount,
+            maturity: Math.round(maturity * 100) / 100,
+            interest: Math.round((maturity - investmentAmount) * 100) / 100,
         };
-    }, [selected, fdInputs.annualRate, loanInputs.termMonths]);
+    }, [investmentAmount, investmentResult.weightedRate, loanInputs.termMonths]);
 
-    // Net comparison: Loan savings vs FD opportunity cost
+    // Net Savings = Investment Returns - Loan Interest Cost
     const comparison = useMemo(() => {
-        const loanSavings = selected.savings;
-        const fdOpportunityCost = fdResult.totalInterest * (loanInputs.termMonths / fdInputs.termMonths);
-        const netBenefit = loanSavings - fdOpportunityCost;
+        const loanInterestSaved = selected.savings;
+        const investmentInterest = investmentReturns.interest;
+        const loanPenalty = selected.result.totalPenalty || 0;
+
+        // Net savings from the loan strategy
+        const netSavings = calculateNetSavings(investmentInterest, scenarioA.totalInterest - selected.result.totalInterest, loanPenalty);
+
+        // Break-even analysis
+        const breakEvenMonth = calculateBreakEvenMonth(
+            investmentAmount,
+            investmentResult.weightedRate,
+            scenarioA.totalInterest - selected.result.totalInterest
+        );
 
         return {
-            loanSavings,
-            fdOpportunityCost: fdOpportunityCost > 0 ? fdOpportunityCost : 0,
-            netBenefit,
-            recommendation: netBenefit > 0 ? 'prepay' : 'invest',
+            loanInterestSaved,
+            investmentReturns: investmentInterest,
+            netSavings,
+            breakEvenMonth,
+            recommendation: loanInterestSaved > investmentInterest ? 'prepay' : 'invest',
         };
-    }, [selected, fdResult, loanInputs.termMonths, fdInputs.termMonths]);
+    }, [selected, investmentReturns, investmentAmount, investmentResult.weightedRate, scenarioA.totalInterest]);
 
     return (
         <div className="space-y-6">
             {/* Header */}
             <div>
-                <h1 className="text-2xl font-bold text-gray-800">Compare Scenarios</h1>
-                <p className="text-gray-600">Should you prepay your loan or invest in FD?</p>
+                <h1 className="text-2xl font-bold text-gray-800">Loan vs Investment</h1>
+                <p className="text-gray-600">Should you prepay your loan or invest?</p>
             </div>
+
+            {/* Mode Toggle */}
+            <Card>
+                <CardHeader title="Investment Mode" subtitle="How should we calculate the investment?" />
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                    <div>
+                        <p className="font-medium text-gray-800">
+                            {linkedToLoan ? 'Linked to Loan' : 'Independent Amount'}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                            {linkedToLoan
+                                ? `Using loan principal: ${formatEUR(loanInputs.principal)}`
+                                : `Using investment amount: ${formatEUR(investmentInputs.principal)}`
+                            }
+                        </p>
+                    </div>
+                    <Toggle
+                        label=""
+                        checked={linkedToLoan}
+                        onChange={setLinkedToLoan}
+                    />
+                </div>
+            </Card>
 
             {/* Scenario Selection */}
             <Card>
-                <CardHeader title="Select Scenario to Compare" subtitle="Compare against Scenario A (Original)" />
+                <CardHeader title="Select Loan Strategy" subtitle="Compare against Scenario A (Original)" />
                 <div className="flex gap-4">
                     <button
                         onClick={() => setSelectedScenario('B')}
                         className={`flex-1 p-4 rounded-xl border-2 transition-all ${selectedScenario === 'B'
-                                ? 'border-purple-500 bg-purple-50'
-                                : 'border-gray-200 hover:border-gray-300'
+                            ? 'border-purple-500 bg-purple-50'
+                            : 'border-gray-200 hover:border-gray-300'
                             }`}
                     >
                         <h4 className="font-semibold text-gray-800">Scenario B</h4>
@@ -85,8 +116,8 @@ export default function ComparePage() {
                     <button
                         onClick={() => setSelectedScenario('C')}
                         className={`flex-1 p-4 rounded-xl border-2 transition-all ${selectedScenario === 'C'
-                                ? 'border-green-500 bg-green-50'
-                                : 'border-gray-200 hover:border-gray-300'
+                            ? 'border-green-500 bg-green-50'
+                            : 'border-gray-200 hover:border-gray-300'
                             }`}
                     >
                         <h4 className="font-semibold text-gray-800">Scenario C</h4>
@@ -96,52 +127,69 @@ export default function ComparePage() {
                 </div>
             </Card>
 
-            {/* Comparison Overview */}
+            {/* Key Metrics */}
             <div className="grid md:grid-cols-3 gap-4">
                 <StatCard
                     label="Loan Interest Saved"
-                    value={formatEUR(comparison.loanSavings)}
-                    subValue={formatINR(convertToINR(comparison.loanSavings))}
+                    value={formatEUR(comparison.loanInterestSaved)}
+                    subValue={formatINR(convertToINR(comparison.loanInterestSaved))}
                     trend="up"
                 />
                 <StatCard
-                    label="FD Opportunity Cost"
-                    value={formatEUR(comparison.fdOpportunityCost)}
-                    subValue="If invested in FD instead"
-                    trend="down"
+                    label="Investment Returns"
+                    value={formatEUR(comparison.investmentReturns)}
+                    subValue={`At ${formatPercent(investmentResult.weightedRate)}`}
+                    trend="up"
                 />
                 <StatCard
-                    label="Net Benefit"
-                    value={formatEUR(comparison.netBenefit)}
-                    subValue={formatINR(convertToINR(comparison.netBenefit))}
-                    trend={comparison.netBenefit > 0 ? 'up' : 'down'}
+                    label="Net Savings"
+                    value={formatEUR(comparison.loanInterestSaved - comparison.investmentReturns)}
+                    subValue={comparison.recommendation === 'prepay' ? 'Favor: Prepay' : 'Favor: Invest'}
+                    trend={comparison.recommendation === 'prepay' ? 'up' : 'down'}
                 />
             </div>
+
+            {/* Break-Even Analysis */}
+            {comparison.breakEvenMonth > 0 && (
+                <Card>
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                            <span className="text-2xl">⏱️</span>
+                        </div>
+                        <div>
+                            <h3 className="font-semibold text-gray-800">Break-Even Point</h3>
+                            <p className="text-gray-600">
+                                Investment returns exceed loan interest saved in <strong>{comparison.breakEvenMonth} months</strong> ({formatDuration(comparison.breakEvenMonth)})
+                            </p>
+                        </div>
+                    </div>
+                </Card>
+            )}
 
             {/* Recommendation */}
             <Card variant={comparison.recommendation === 'prepay' ? 'gradient' : 'default'}>
                 <div className="text-center py-4">
                     <div className="text-4xl mb-2">
-                        {comparison.recommendation === 'prepay' ? '✅' : '💰'}
+                        {comparison.recommendation === 'prepay' ? '🏦' : '📈'}
                     </div>
                     <h3 className="text-xl font-bold mb-2">
                         {comparison.recommendation === 'prepay'
-                            ? 'Prepaying is the Better Choice!'
-                            : 'Consider Investing in FD'
+                            ? 'Prepaying Saves More!'
+                            : 'Investing Gives Better Returns!'
                         }
                     </h3>
                     <p className={comparison.recommendation === 'prepay' ? 'text-white/80' : 'text-gray-600'}>
                         {comparison.recommendation === 'prepay'
-                            ? `You save ${formatEUR(comparison.netBenefit)} more by prepaying your loan compared to investing in FD.`
-                            : `FD investment might give you better returns. However, being debt-free has its own peace of mind value!`
+                            ? `You save ${formatEUR(comparison.loanInterestSaved - comparison.investmentReturns)} more by prepaying your loan.`
+                            : `Investing gives ${formatEUR(comparison.investmentReturns - comparison.loanInterestSaved)} more in returns. However, being debt-free has its own value!`
                         }
                     </p>
                 </div>
             </Card>
 
-            {/* Detailed Comparison */}
+            {/* Side by Side Comparison */}
             <div className="grid md:grid-cols-2 gap-6">
-                {/* Loan Scenario Details */}
+                {/* Loan Details */}
                 <Card>
                     <CardHeader
                         title={`Scenario ${selectedScenario}: ${selected.name}`}
@@ -157,51 +205,47 @@ export default function ComparePage() {
                             <span className="font-medium">{formatEUR(selected.result.totalInterest)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                            <span className="text-gray-600">Months to Clear</span>
+                            <span className="text-gray-600">Duration</span>
                             <span className="font-medium">{selected.result.schedule.length} months</span>
                         </div>
                         {selected.result.monthsSaved && selected.result.monthsSaved > 0 && (
                             <div className="flex justify-between text-sm text-green-600">
                                 <span>Months Saved</span>
-                                <span className="font-medium">{selected.result.monthsSaved} months</span>
+                                <span className="font-medium">{selected.result.monthsSaved}</span>
                             </div>
                         )}
                         <div className="pt-3 border-t">
                             <div className="flex justify-between font-semibold">
-                                <span>Interest Saved vs A</span>
+                                <span>Interest Saved</span>
                                 <span className="text-green-600">{formatEUR(selected.savings)}</span>
                             </div>
                         </div>
                     </div>
                 </Card>
 
-                {/* FD Alternative */}
+                {/* Investment Details */}
                 <Card>
                     <CardHeader
-                        title="FD Alternative"
-                        subtitle={`If you invest in FD at ${formatPercent(fdInputs.annualRate)}`}
+                        title="Investment Alternative"
+                        subtitle={`Portfolio at ${formatPercent(investmentResult.weightedRate)} avg. rate`}
                     />
                     <div className="space-y-3">
                         <div className="flex justify-between text-sm">
                             <span className="text-gray-600">Investment Amount</span>
-                            <span className="font-medium">{formatEUR(fdInputs.principal)}</span>
+                            <span className="font-medium">{formatEUR(investmentReturns.principal)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                            <span className="text-gray-600">Maturity Amount</span>
-                            <span className="font-medium">{formatEUR(fdResult.maturityAmount)}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                            <span className="text-gray-600">Interest Earned</span>
-                            <span className="font-medium text-green-600">{formatEUR(fdResult.totalInterest)}</span>
+                            <span className="text-gray-600">Maturity Value</span>
+                            <span className="font-medium">{formatEUR(investmentReturns.maturity)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
                             <span className="text-gray-600">Term</span>
-                            <span className="font-medium">{formatDuration(fdInputs.termMonths)}</span>
+                            <span className="font-medium">{formatDuration(loanInputs.termMonths)}</span>
                         </div>
                         <div className="pt-3 border-t">
                             <div className="flex justify-between font-semibold">
                                 <span>Total Returns</span>
-                                <span className="text-blue-600">{formatEUR(fdResult.totalInterest)}</span>
+                                <span className="text-blue-600">{formatEUR(investmentReturns.interest)}</span>
                             </div>
                         </div>
                     </div>
@@ -210,49 +254,54 @@ export default function ComparePage() {
 
             {/* Visual Comparison */}
             <Card>
-                <CardHeader title="Visual Comparison" subtitle="All scenarios at a glance" />
+                <CardHeader title="Visual Comparison" subtitle="Loan vs Investment" />
                 <ComparisonChart
                     scenarios={[
                         {
-                            name: 'A: Original',
-                            totalPayment: scenarioA.totalPayment,
-                            totalInterest: scenarioA.totalInterest,
-                            color: '#64748b'
+                            name: 'Loan Interest Saved',
+                            totalPayment: selected.savings,
+                            totalInterest: selected.savings,
+                            color: '#10b981'
                         },
                         {
-                            name: `${selectedScenario}: ${selected.name}`,
-                            totalPayment: selected.result.totalPayment,
-                            totalInterest: selected.result.totalInterest,
-                            color: selectedScenario === 'B' ? '#8b5cf6' : '#10b981'
+                            name: 'Investment Returns',
+                            totalPayment: investmentReturns.interest,
+                            totalInterest: investmentReturns.interest,
+                            color: '#3b82f6'
                         },
                     ]}
                 />
             </Card>
 
-            {/* Savings in Both Currencies */}
+            {/* Summary */}
             <Card variant="gradient">
                 <div className="text-center py-4">
-                    <h3 className="text-xl font-bold mb-4">Net Savings Summary</h3>
+                    <h3 className="text-xl font-bold mb-4">Summary</h3>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="bg-white/20 rounded-xl p-4">
-                            <p className="text-sm text-white/80">In EUR</p>
-                            <p className="text-3xl font-bold">{formatEUR(comparison.netBenefit)}</p>
+                            <p className="text-sm text-white/80">Loan Interest Saved</p>
+                            <p className="text-2xl font-bold">{formatEUR(comparison.loanInterestSaved)}</p>
+                            <p className="text-xs text-white/60">{formatINR(convertToINR(comparison.loanInterestSaved))}</p>
                         </div>
                         <div className="bg-white/20 rounded-xl p-4">
-                            <p className="text-sm text-white/80">In INR</p>
-                            <p className="text-3xl font-bold">{formatINR(convertToINR(comparison.netBenefit))}</p>
+                            <p className="text-sm text-white/80">Investment Returns</p>
+                            <p className="text-2xl font-bold">{formatEUR(comparison.investmentReturns)}</p>
+                            <p className="text-xs text-white/60">{formatINR(convertToINR(comparison.investmentReturns))}</p>
                         </div>
                     </div>
-                    <p className="text-xs text-white/60 mt-4">
-                        Net Savings = Interest saved from {selected.name} strategy - FD opportunity cost
-                    </p>
+                    <div className="mt-4 bg-white/10 rounded-xl p-3">
+                        <p className="text-sm text-white/80">Net Difference</p>
+                        <p className="text-lg font-bold">
+                            {comparison.loanInterestSaved > comparison.investmentReturns ? '+' : ''}{formatEUR(comparison.loanInterestSaved - comparison.investmentReturns)}
+                        </p>
+                    </div>
                 </div>
             </Card>
 
             {/* Hints */}
             <div className="space-y-4">
                 <Hint type="info">{HINTS.general.savings}</Hint>
-                <Hint type="tip">{HINTS.fd.comparison}</Hint>
+                <Hint type="tip">💡 The comparison uses your current portfolio allocation from the Investment Planner. Adjust it there to see different scenarios.</Hint>
             </div>
         </div>
     );

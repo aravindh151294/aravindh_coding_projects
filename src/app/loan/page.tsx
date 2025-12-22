@@ -10,10 +10,11 @@ import { EXTRA_PAYMENT_OPTIONS, HINTS } from '@/lib/constants';
 import { MonthlyScheduleEntry } from '@/lib/calculations';
 
 export default function LoanPage() {
-  const { inputs, updateInput, resetInputs, scenarioA, scenarioB, scenarioC, savings } = useLoanCalculator();
-  const { exchangeRate, setExchangeRate, convertToINR } = useCurrency();
+  const { inputs, updateInput, resetInputs, scenarioA, scenarioB, scenarioC, savings, exchangeRate } = useLoanCalculator();
+  const { convertToINR } = useCurrency();
   const [activeScenario, setActiveScenario] = useState('A');
   const [showSchedule, setShowSchedule] = useState(false);
+  const [showComparison, setShowComparison] = useState(false);
 
   const scenarios = [
     { id: 'A', label: 'Scenario A', result: scenarioA },
@@ -118,19 +119,6 @@ export default function LoanPage() {
             </div>
           </Card>
 
-          <Card>
-            <CardHeader title="Currency" subtitle="EUR to INR conversion" />
-            <Input
-              label="Exchange Rate"
-              type="number"
-              step="0.1"
-              prefix="₹"
-              suffix="per €"
-              value={exchangeRate}
-              onChange={(e) => setExchangeRate(Number(e.target.value))}
-            />
-          </Card>
-
           <Hint type="tip">{HINTS.loan.prepayment}</Hint>
         </div>
 
@@ -203,16 +191,29 @@ export default function LoanPage() {
             </Hint>
           )}
 
-          {/* Comparison Chart */}
+          {/* Comparison Chart - Collapsible */}
           <Card>
-            <CardHeader title="Scenario Comparison" subtitle="Principal vs Interest breakdown" />
-            <ComparisonChart
-              scenarios={[
-                { name: 'Scenario A', totalPayment: scenarioA.totalPayment, totalInterest: scenarioA.totalInterest, color: '#3b82f6' },
-                { name: 'Scenario B', totalPayment: scenarioB.totalPayment, totalInterest: scenarioB.totalInterest, color: '#8b5cf6' },
-                { name: 'Scenario C', totalPayment: scenarioC.totalPayment, totalInterest: scenarioC.totalInterest, color: '#10b981' },
-              ]}
-            />
+            <div
+              className="flex items-center justify-between cursor-pointer"
+              onClick={() => setShowComparison(!showComparison)}
+            >
+              <CardHeader title="Scenario Comparison" subtitle="Principal vs Interest breakdown" />
+              <svg
+                className={`w-5 h-5 text-gray-400 transition-transform ${showComparison ? 'rotate-180' : ''}`}
+                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+            {showComparison && (
+              <ComparisonChart
+                scenarios={[
+                  { name: 'Scenario A', totalPayment: scenarioA.totalPayment, totalInterest: scenarioA.totalInterest, color: '#3b82f6' },
+                  { name: 'Scenario B', totalPayment: scenarioB.totalPayment, totalInterest: scenarioB.totalInterest, color: '#8b5cf6' },
+                  { name: 'Scenario C', totalPayment: scenarioC.totalPayment, totalInterest: scenarioC.totalInterest, color: '#10b981' },
+                ]}
+              />
+            )}
           </Card>
 
           {/* Breakdown Chart */}
@@ -241,8 +242,8 @@ export default function LoanPage() {
           {showSchedule && (
             <Card padding="sm">
               <div className="overflow-x-auto max-h-96">
-                <ScheduleTable 
-                  schedule={activeResult.schedule} 
+                <ScheduleTable
+                  schedule={activeResult.schedule}
                   exchangeRate={exchangeRate}
                   showPenalty={activeScenario === 'B'}
                 />

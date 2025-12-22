@@ -2,18 +2,26 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Card, CardHeader, StatCard, Hint } from '@/components/ui';
+import { Card, CardHeader, StatCard, Hint, Input } from '@/components/ui';
 import { formatEUR, formatDuration } from '@/lib/formatters';
-import { DEFAULT_LOAN, DEFAULT_FD, HINTS } from '@/lib/constants';
-import { calculateEMI, calculateFDMaturity } from '@/lib/calculations';
+import { DEFAULT_LOAN, HINTS } from '@/lib/constants';
+import { calculateEMI, calculatePortfolioMaturity } from '@/lib/calculations';
+import { useAppState } from '@/context/AppContext';
 
 export default function DashboardPage() {
+  const { investment, currency, setCurrency } = useAppState();
+
   // Calculate summary values
   const loanEMI = calculateEMI(DEFAULT_LOAN.principal, DEFAULT_LOAN.annualRate, DEFAULT_LOAN.termMonths);
   const totalLoanPayment = loanEMI * DEFAULT_LOAN.termMonths;
   const totalLoanInterest = totalLoanPayment - DEFAULT_LOAN.principal;
 
-  const fdResult = calculateFDMaturity(DEFAULT_FD.principal, DEFAULT_FD.annualRate, DEFAULT_FD.termMonths, DEFAULT_FD.compoundingFrequency);
+  const portfolioResult = calculatePortfolioMaturity(
+    investment.totalAmount,
+    investment.allocations,
+    investment.termMonths,
+    investment.compoundingFrequency
+  );
 
   return (
     <div className="space-y-6">
@@ -23,7 +31,7 @@ export default function DashboardPage() {
           <span className="gradient-text">FinDash</span>
         </h1>
         <p className="text-gray-600 text-lg max-w-2xl mx-auto">
-          Your intelligent financial planning companion. Analyze loans, calculate FD returns, and make smarter decisions.
+          Your intelligent financial planning companion. Analyze loans, plan investments, and make smarter decisions.
         </p>
       </div>
 
@@ -42,16 +50,16 @@ export default function DashboardPage() {
           icon={<InterestIcon />}
         />
         <StatCard
-          label="FD Maturity"
-          value={formatEUR(fdResult.maturityAmount)}
-          subValue={`+${formatEUR(fdResult.totalInterest)}`}
+          label="Portfolio Value"
+          value={formatEUR(portfolioResult.maturityAmount)}
+          subValue={`+${formatEUR(portfolioResult.totalInterest)}`}
           trend="up"
           icon={<FDIcon />}
         />
         <StatCard
-          label="Potential Savings"
-          value="-"
-          subValue="Configure scenarios"
+          label="Weighted Rate"
+          value={`${portfolioResult.weightedRate}%`}
+          subValue="Avg. return"
           icon={<SavingsIcon />}
         />
       </div>
@@ -91,31 +99,31 @@ export default function DashboardPage() {
           </Card>
         </Link>
 
-        {/* FD Calculator Card */}
+        {/* Investment Planner Card */}
         <Link href="/fd" className="block card-hover">
           <Card className="h-full">
             <CardHeader
-              title="Fixed Deposit Calculator"
-              subtitle="Compound interest & growth"
+              title="Investment Planner"
+              subtitle="Multi-instrument portfolio"
               icon={<FDIcon />}
             />
             <div className="space-y-3">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Compounding</span>
-                <span className="font-medium">Monthly to Yearly</span>
+                <span className="text-gray-600">Instruments</span>
+                <span className="font-medium">FD, Bonds, Gold, Equity, MF</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Tax Calculation</span>
-                <span className="font-medium">Optional</span>
+                <span className="text-gray-600">Risk Analysis</span>
+                <span className="font-medium">Color-coded levels</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Inflation Adjusted</span>
-                <span className="font-medium">Real Returns</span>
+                <span className="text-gray-600">Input Mode</span>
+                <span className="font-medium">% or Amount</span>
               </div>
             </div>
             <div className="mt-4 pt-4 border-t border-gray-100">
               <span className="text-blue-600 font-medium text-sm flex items-center gap-1">
-                Open Calculator
+                Open Planner
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
@@ -131,7 +139,7 @@ export default function DashboardPage() {
           <div className="py-4">
             <h3 className="text-2xl font-bold mb-2">Compare Scenarios</h3>
             <p className="text-white/80 mb-4">
-              Should you prepay your loan or invest in FD? Find out with our detailed comparison tool.
+              Should you prepay your loan or invest? Find out with our detailed comparison tool.
             </p>
             <span className="inline-flex items-center gap-2 px-6 py-2 bg-white/20 rounded-xl text-white font-medium hover:bg-white/30 transition-colors">
               Start Comparison
@@ -142,6 +150,23 @@ export default function DashboardPage() {
           </div>
         </Card>
       </Link>
+
+      {/* Settings Card */}
+      <Card>
+        <CardHeader title="Settings" subtitle="Centralized configuration" />
+        <div className="grid md:grid-cols-2 gap-4">
+          <Input
+            label="EUR to INR Exchange Rate"
+            type="number"
+            step="0.1"
+            prefix="₹"
+            suffix="per €"
+            value={currency.eurToInr}
+            onChange={(e) => setCurrency({ eurToInr: Number(e.target.value) })}
+            hint="Used across all calculations"
+          />
+        </div>
+      </Card>
 
       {/* Hints */}
       <div className="grid md:grid-cols-2 gap-4">
