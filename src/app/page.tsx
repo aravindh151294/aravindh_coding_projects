@@ -3,18 +3,13 @@
 import React, { useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardHeader, StatCard, Hint, Input, Select } from '@/components/ui';
-import { formatEUR, formatDuration, setGlobalLocale } from '@/lib/formatters';
+import { formatEUR, formatDuration } from '@/lib/formatters';
 import { DEFAULT_LOAN, HINTS } from '@/lib/constants';
 import { calculateEMI, calculatePortfolioMaturity } from '@/lib/calculations';
 import { useAppState, LocalePreference } from '@/context/AppContext';
 
 export default function DashboardPage() {
   const { investment, currency, setCurrency } = useAppState();
-
-  // Sync locale with formatters
-  useEffect(() => {
-    setGlobalLocale(currency.locale);
-  }, [currency.locale]);
 
   // Calculate summary values
   const loanEMI = calculateEMI(DEFAULT_LOAN.principal, DEFAULT_LOAN.annualRate, DEFAULT_LOAN.termMonths);

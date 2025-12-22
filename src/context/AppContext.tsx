@@ -182,6 +182,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setCurrencyState(defaultCurrencyState);
     };
 
+    // Sync global locale setting whenever currency.locale changes
+    React.useEffect(() => {
+        const { setGlobalLocale } = require('@/lib/formatters');
+        setGlobalLocale(currency.locale);
+    }, [currency.locale]);
+
     return (
         <AppContext.Provider value={{
             loan,
