@@ -6,7 +6,7 @@ import { ComparisonChart } from '@/components/charts';
 import { useLoanCalculator } from '@/hooks/useLoanCalculator';
 import { useFDCalculator } from '@/hooks/useFDCalculator';
 import { useCurrency } from '@/hooks/useCurrency';
-import { formatEUR, formatINR, formatDuration, formatPercent } from '@/lib/formatters';
+import { useFormatters, formatDuration } from '@/hooks/useFormatters';
 import { calculateBreakEvenMonth, calculateNetSavings } from '@/lib/calculations';
 import { HINTS } from '@/lib/constants';
 
@@ -14,9 +14,11 @@ export default function ComparePage() {
     const { inputs: loanInputs, scenarioA, scenarioB, scenarioC, savings } = useLoanCalculator();
     const { inputs: investmentInputs, result: investmentResult } = useFDCalculator();
     const { convertToINR } = useCurrency();
+    const { formatEUR, formatINR, formatPercent } = useFormatters();
 
     const [selectedScenario, setSelectedScenario] = useState<'B' | 'C'>('B');
     const [linkedToLoan, setLinkedToLoan] = useState(true);
+    const [whatIfAdjustment, setWhatIfAdjustment] = useState(2); // Default ±2%
 
     const scenarios = {
         A: { name: 'Original', result: scenarioA, savings: 0 },
@@ -300,16 +302,35 @@ export default function ComparePage() {
 
             {/* What-If Scenarios */}
             <Card>
-                <CardHeader title="What-If Analysis" subtitle="See how changes affect your decision" />
-                <div className="space-y-4">
-                    <p className="text-sm text-gray-600">
-                        Explore how different investment returns would affect your decision:
-                    </p>
+                <CardHeader title="What-If Analysis" subtitle="Adjust the rate variation to explore scenarios" />
+                <div className="space-y-6">
+                    {/* Slider for adjustment */}
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                            <label className="text-sm font-medium text-gray-700">Rate Variation</label>
+                            <span className="text-sm font-semibold text-blue-600">±{whatIfAdjustment.toFixed(2)}%</span>
+                        </div>
+                        <input
+                            type="range"
+                            min={0.25}
+                            max={5}
+                            step={0.25}
+                            value={whatIfAdjustment}
+                            onChange={(e) => setWhatIfAdjustment(Number(e.target.value))}
+                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                        />
+                        <div className="flex justify-between text-xs text-gray-400">
+                            <span>±0.25%</span>
+                            <span>±5%</span>
+                        </div>
+                    </div>
+
+                    {/* Scenario Cards */}
                     <div className="grid md:grid-cols-3 gap-3">
                         {[
-                            { label: 'Conservative (-2%)', rateDiff: -2 },
+                            { label: `Conservative (-${whatIfAdjustment.toFixed(2)}%)`, rateDiff: -whatIfAdjustment },
                             { label: 'Current', rateDiff: 0 },
-                            { label: 'Optimistic (+2%)', rateDiff: 2 },
+                            { label: `Optimistic (+${whatIfAdjustment.toFixed(2)}%)`, rateDiff: whatIfAdjustment },
                         ].map((scenario) => {
                             const adjRate = investmentResult.weightedRate + scenario.rateDiff;
                             const adjYears = loanInputs.termMonths / 12;
@@ -322,10 +343,10 @@ export default function ComparePage() {
                                 <div
                                     key={scenario.label}
                                     className={`p-4 rounded-xl border-2 ${scenario.rateDiff === 0
-                                            ? 'border-blue-500 bg-blue-50'
-                                            : isPositive
-                                                ? 'border-green-200 bg-green-50'
-                                                : 'border-amber-200 bg-amber-50'
+                                        ? 'border-blue-500 bg-blue-50'
+                                        : isPositive
+                                            ? 'border-green-200 bg-green-50'
+                                            : 'border-amber-200 bg-amber-50'
                                         }`}
                                 >
                                     <div className="text-xs text-gray-600 mb-1">{scenario.label}</div>

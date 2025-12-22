@@ -1,5 +1,7 @@
+'use client';
+
 import React from 'react';
-import { getInputLang } from '@/lib/formatters';
+import { useFormatters } from '@/hooks/useFormatters';
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
     label: string;
@@ -17,10 +19,25 @@ export function Input({
     suffix,
     className = '',
     id,
+    type,
+    onChange,
     ...props
 }: InputProps) {
+    const { getInputLang } = useFormatters();
     const inputId = id || label.toLowerCase().replace(/\s+/g, '-');
     const langAttr = getInputLang();
+
+    // Handle onChange to strip leading zeros for number inputs
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (type === 'number' && onChange) {
+            const value = e.target.value;
+            // Strip leading zeros except for "0." decimal cases
+            if (value.length > 1 && value.startsWith('0') && value[1] !== '.') {
+                e.target.value = value.replace(/^0+/, '') || '0';
+            }
+        }
+        onChange?.(e);
+    };
 
     return (
         <div className={`space-y-1 ${className}`}>
@@ -35,7 +52,9 @@ export function Input({
                 )}
                 <input
                     id={inputId}
+                    type={type}
                     lang={langAttr || undefined}
+                    onChange={handleChange}
                     className={`
             w-full px-4 py-2.5 rounded-xl border transition-all duration-200
             ${prefix ? 'pl-8' : ''}

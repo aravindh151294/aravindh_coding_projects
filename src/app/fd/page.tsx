@@ -5,7 +5,7 @@ import { Card, CardHeader, Button, Input, Select, Toggle, Hint, StatCard, Tabs }
 import { AllocationChart } from '@/components/charts';
 import { AllocationManager, RiskMeter } from '@/components/investment';
 import { useAppState } from '@/context/AppContext';
-import { formatEUR, formatINR, formatDuration, formatPercent } from '@/lib/formatters';
+import { useFormatters, formatDuration } from '@/hooks/useFormatters';
 import { COMPOUNDING_OPTIONS, HINTS } from '@/lib/constants';
 import {
     calculatePortfolioMaturity,
@@ -18,6 +18,7 @@ import { getInstrumentById, RISK_LABELS } from '@/lib/riskProfiles';
 
 export default function InvestmentPage() {
     const { investment, setInvestment, currency } = useAppState();
+    const { formatEUR, formatINR, formatPercent } = useFormatters();
     const [showBreakdown, setShowBreakdown] = useState(false);
     const [activeTab, setActiveTab] = useState('allocations');
 

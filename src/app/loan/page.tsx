@@ -5,13 +5,14 @@ import { Card, CardHeader, Button, Input, Select, Toggle, Hint, StatCard, Tabs, 
 import { ComparisonChart, DoughnutChart } from '@/components/charts';
 import { useLoanCalculator } from '@/hooks/useLoanCalculator';
 import { useCurrency } from '@/hooks/useCurrency';
-import { formatEUR, formatINR, formatNumber, formatDuration, formatPercent } from '@/lib/formatters';
+import { useFormatters, formatDuration } from '@/hooks/useFormatters';
 import { EXTRA_PAYMENT_OPTIONS, HINTS } from '@/lib/constants';
 import { MonthlyScheduleEntry } from '@/lib/calculations';
 
 export default function LoanPage() {
   const { inputs, updateInput, resetInputs, scenarioA, scenarioB, scenarioC, savings, exchangeRate } = useLoanCalculator();
   const { convertToINR } = useCurrency();
+  const { formatEUR, formatINR, formatNumber, formatPercent } = useFormatters();
   const [activeScenario, setActiveScenario] = useState('A');
   const [showSchedule, setShowSchedule] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
@@ -284,6 +285,8 @@ interface ScheduleTableProps {
 }
 
 function ScheduleTable({ schedule, exchangeRate, showPenalty }: ScheduleTableProps) {
+  const { formatNumber, formatINR } = useFormatters();
+
   return (
     <table className="schedule-table">
       <thead>
@@ -319,3 +322,4 @@ function ScheduleTable({ schedule, exchangeRate, showPenalty }: ScheduleTablePro
     </table>
   );
 }
+
