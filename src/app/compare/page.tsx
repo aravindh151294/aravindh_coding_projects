@@ -298,7 +298,54 @@ export default function ComparePage() {
                 </div>
             </Card>
 
-            {/* Hints */}
+            {/* What-If Scenarios */}
+            <Card>
+                <CardHeader title="What-If Analysis" subtitle="See how changes affect your decision" />
+                <div className="space-y-4">
+                    <p className="text-sm text-gray-600">
+                        Explore how different investment returns would affect your decision:
+                    </p>
+                    <div className="grid md:grid-cols-3 gap-3">
+                        {[
+                            { label: 'Conservative (-2%)', rateDiff: -2 },
+                            { label: 'Current', rateDiff: 0 },
+                            { label: 'Optimistic (+2%)', rateDiff: 2 },
+                        ].map((scenario) => {
+                            const adjRate = investmentResult.weightedRate + scenario.rateDiff;
+                            const adjYears = loanInputs.termMonths / 12;
+                            const adjMaturity = investmentAmount * Math.pow(1 + adjRate / 100 / 4, 4 * adjYears);
+                            const adjInterest = adjMaturity - investmentAmount;
+                            const adjDiff = comparison.loanInterestSaved - adjInterest;
+                            const isPositive = adjDiff > 0;
+
+                            return (
+                                <div
+                                    key={scenario.label}
+                                    className={`p-4 rounded-xl border-2 ${scenario.rateDiff === 0
+                                            ? 'border-blue-500 bg-blue-50'
+                                            : isPositive
+                                                ? 'border-green-200 bg-green-50'
+                                                : 'border-amber-200 bg-amber-50'
+                                        }`}
+                                >
+                                    <div className="text-xs text-gray-600 mb-1">{scenario.label}</div>
+                                    <div className="text-sm font-medium text-gray-800">
+                                        Rate: {formatPercent(adjRate)}
+                                    </div>
+                                    <div className="text-lg font-bold text-gray-900">
+                                        {formatEUR(adjInterest)}
+                                    </div>
+                                    <div className={`text-xs ${isPositive ? 'text-green-600' : 'text-amber-600'}`}>
+                                        {isPositive ? 'Prepay wins' : 'Invest wins'} by {formatEUR(Math.abs(adjDiff))}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            </Card>
+
+            {/* Tips */}
             <div className="space-y-4">
                 <Hint type="info">{HINTS.general.savings}</Hint>
                 <Hint type="tip">💡 The comparison uses your current portfolio allocation from the Investment Planner. Adjust it there to see different scenarios.</Hint>
@@ -306,3 +353,4 @@ export default function ComparePage() {
         </div>
     );
 }
+

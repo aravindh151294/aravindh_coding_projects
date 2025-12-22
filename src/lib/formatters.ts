@@ -1,10 +1,11 @@
 // Formatting utilities for FinDash
+// All numbers use period (.) as decimal separator
 
 /**
- * Format number as currency (EUR)
+ * Format number as currency (EUR) with period decimal separator
  */
 export function formatEUR(amount: number): string {
-    return new Intl.NumberFormat('de-DE', {
+    return new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: 'EUR',
         minimumFractionDigits: 2,
@@ -13,15 +14,18 @@ export function formatEUR(amount: number): string {
 }
 
 /**
- * Format number as currency (INR)
+ * Format number as currency (INR) with period decimal separator
  */
 export function formatINR(amount: number): string {
-    return new Intl.NumberFormat('en-IN', {
+    // Use en-IN for lakh/crore grouping but force period decimal
+    const formatted = new Intl.NumberFormat('en-IN', {
         style: 'currency',
         currency: 'INR',
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
     }).format(amount);
+    // en-IN already uses period for decimals, so no change needed
+    return formatted;
 }
 
 /**
@@ -32,7 +36,7 @@ export function eurToInr(eur: number, rate: number = 89): number {
 }
 
 /**
- * Format number with commas
+ * Format number with thousand separators (comma) and period decimal
  */
 export function formatNumber(num: number, decimals: number = 2): string {
     return new Intl.NumberFormat('en-US', {
@@ -54,7 +58,7 @@ export function formatDuration(months: number): string {
 }
 
 /**
- * Format percentage
+ * Format percentage with period decimal separator
  */
 export function formatPercent(value: number, decimals: number = 2): string {
     return `${value.toFixed(decimals)}%`;
