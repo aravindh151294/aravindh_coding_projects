@@ -2,9 +2,7 @@
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { DEFAULT_LOAN, DEFAULT_CURRENCY } from '@/lib/constants';
-import { INVESTMENT_INSTRUMENTS } from '@/lib/riskProfiles';
-
-// ... (existing helper types)
+import { INVESTMENT_INSTRUMENTS, getInstrumentsByMode, InvestmentMode } from '@/lib/riskProfiles';
 
 // Loan State
 export interface LoanState {
@@ -18,28 +16,40 @@ export interface LoanState {
     extraPaymentTiming: 'before' | 'after' | 'both';
 }
 
-// Investment Allocation
+// Investment Allocation (with per-instrument tax rate)
 export interface InvestmentAllocation {
     instrumentId: string;
     amount: number;
     percentage: number;
     annualRate: number;
+    taxRate: number;
     country?: string;
 }
 
-// Investment State
-export interface InvestmentState {
+// Lumpsum Investment State
+export interface LumpsumState {
     totalAmount: number;
-    termMonths: number;
+    linkedToLoan: boolean;
     inputMode: 'percentage' | 'amount';
     allocations: InvestmentAllocation[];
+}
+
+// SIP Investment State
+export interface SIPState {
+    monthlyAmount: number;
+    inputMode: 'percentage' | 'amount';
+    allocations: InvestmentAllocation[];
+}
+
+// Combined Investment State
+export interface InvestmentState {
+    termMonths: number;
     compoundingFrequency: 'monthly' | 'quarterly' | 'half-yearly' | 'yearly';
-    payoutType: 'cumulative' | 'monthly' | 'quarterly' | 'yearly';
-    taxRate: number;
-    inflationRate: number;
-    includeTax: boolean;
     adjustInflation: boolean;
-    linkedToLoan: boolean; // For comparison: use loan amount as investment
+    inflationRate: number;
+    activeTab: 'lumpsum' | 'sip';
+    lumpsum: LumpsumState;
+    sip: SIPState;
 }
 
 // Locale type for number formatting
@@ -58,12 +68,26 @@ interface AppState {
     currency: CurrencyState;
     setLoan: (loan: Partial<LoanState>) => void;
     setInvestment: (investment: Partial<InvestmentState>) => void;
+    setLumpsum: (lumpsum: Partial<LumpsumState>) => void;
+    setSIP: (sip: Partial<SIPState>) => void;
     setCurrency: (currency: Partial<CurrencyState>) => void;
-    updateAllocation: (index: number, updates: Partial<InvestmentAllocation>) => void;
-    addAllocation: (instrumentId: string) => void;
-    removeAllocation: (index: number) => void;
-    recalculateAllocations: (mode: 'percentage' | 'amount', newTotal?: number) => void;
+    updateAllocation: (mode: InvestmentMode, index: number, updates: Partial<InvestmentAllocation>) => void;
+    addAllocation: (mode: InvestmentMode, instrumentId: string) => void;
+    removeAllocation: (mode: InvestmentMode, index: number) => void;
+    recalculateAllocations: (mode: InvestmentMode, inputMode: 'percentage' | 'amount', newTotal?: number) => void;
     resetAll: () => void;
+}
+
+// Helper to create default allocation
+function createDefaultAllocation(instrumentId: string): InvestmentAllocation {
+    const instrument = INVESTMENT_INSTRUMENTS.find(i => i.id === instrumentId);
+    return {
+        instrumentId,
+        amount: 0,
+        percentage: 100,
+        annualRate: instrument?.defaultRate ?? 7,
+        taxRate: instrument?.defaultTaxRate ?? 30,
+    };
 }
 
 const defaultLoanState: LoanState = {
@@ -77,25 +101,26 @@ const defaultLoanState: LoanState = {
     extraPaymentTiming: 'both',
 };
 
+const lumpsumInstruments = getInstrumentsByMode('lumpsum');
+const sipInstruments = getInstrumentsByMode('sip');
+
 const defaultInvestmentState: InvestmentState = {
-    totalAmount: 100000,
     termMonths: 60,
-    inputMode: 'percentage',
-    allocations: [
-        {
-            instrumentId: 'fd',
-            amount: 100000,
-            percentage: 100,
-            annualRate: INVESTMENT_INSTRUMENTS[0].defaultRate,
-        },
-    ],
     compoundingFrequency: 'quarterly',
-    payoutType: 'cumulative',
-    taxRate: 30,
-    inflationRate: 6,
-    includeTax: false,
     adjustInflation: false,
-    linkedToLoan: false,
+    inflationRate: 6,
+    activeTab: 'lumpsum',
+    lumpsum: {
+        totalAmount: 100000,
+        linkedToLoan: false,
+        inputMode: 'percentage',
+        allocations: [createDefaultAllocation(lumpsumInstruments[0]?.id || 'fd')],
+    },
+    sip: {
+        monthlyAmount: 1000,
+        inputMode: 'percentage',
+        allocations: [createDefaultAllocation(sipInstruments[0]?.id || 'rd')],
+    },
 };
 
 const defaultCurrencyState: CurrencyState = {
@@ -118,62 +143,108 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setInvestmentState(prev => ({ ...prev, ...updates }));
     };
 
+    const setLumpsum = (updates: Partial<LumpsumState>) => {
+        setInvestmentState(prev => ({
+            ...prev,
+            lumpsum: { ...prev.lumpsum, ...updates },
+        }));
+    };
+
+    const setSIP = (updates: Partial<SIPState>) => {
+        setInvestmentState(prev => ({
+            ...prev,
+            sip: { ...prev.sip, ...updates },
+        }));
+    };
+
     const setCurrency = (updates: Partial<CurrencyState>) => {
         setCurrencyState(prev => ({ ...prev, ...updates }));
     };
 
-    const updateAllocation = (index: number, updates: Partial<InvestmentAllocation>) => {
+    const updateAllocation = (mode: InvestmentMode, index: number, updates: Partial<InvestmentAllocation>) => {
         setInvestmentState(prev => {
-            const newAllocations = [...prev.allocations];
+            const stateKey = mode === 'lumpsum' ? 'lumpsum' : 'sip';
+            const currentState = prev[stateKey];
+            const newAllocations = [...currentState.allocations];
             newAllocations[index] = { ...newAllocations[index], ...updates };
-            return { ...prev, allocations: newAllocations };
+            return {
+                ...prev,
+                [stateKey]: { ...currentState, allocations: newAllocations },
+            };
         });
     };
 
-    const addAllocation = (instrumentId: string) => {
+    const addAllocation = (mode: InvestmentMode, instrumentId: string) => {
         const instrument = INVESTMENT_INSTRUMENTS.find(i => i.id === instrumentId);
         if (!instrument) return;
 
-        setInvestmentState(prev => ({
-            ...prev,
-            allocations: [
-                ...prev.allocations,
-                {
-                    instrumentId,
-                    amount: 0,
-                    percentage: 0,
-                    annualRate: instrument.defaultRate,
-                },
-            ],
-        }));
-    };
-
-    const removeAllocation = (index: number) => {
-        setInvestmentState(prev => ({
-            ...prev,
-            allocations: prev.allocations.filter((_, i) => i !== index),
-        }));
-    };
-
-    const recalculateAllocations = (mode: 'percentage' | 'amount', newTotal?: number) => {
         setInvestmentState(prev => {
-            const total = newTotal ?? prev.totalAmount;
+            const stateKey = mode === 'lumpsum' ? 'lumpsum' : 'sip';
+            const currentState = prev[stateKey];
+            return {
+                ...prev,
+                [stateKey]: {
+                    ...currentState,
+                    allocations: [
+                        ...currentState.allocations,
+                        createDefaultAllocation(instrumentId),
+                    ],
+                },
+            };
+        });
+    };
 
-            if (mode === 'percentage') {
-                // Calculate amounts from percentages
-                const newAllocations = prev.allocations.map(a => ({
+    const removeAllocation = (mode: InvestmentMode, index: number) => {
+        setInvestmentState(prev => {
+            const stateKey = mode === 'lumpsum' ? 'lumpsum' : 'sip';
+            const currentState = prev[stateKey];
+            return {
+                ...prev,
+                [stateKey]: {
+                    ...currentState,
+                    allocations: currentState.allocations.filter((_, i) => i !== index),
+                },
+            };
+        });
+    };
+
+    const recalculateAllocations = (mode: InvestmentMode, inputMode: 'percentage' | 'amount', newTotal?: number) => {
+        setInvestmentState(prev => {
+            const stateKey = mode === 'lumpsum' ? 'lumpsum' : 'sip';
+            const currentState = prev[stateKey];
+            const total = mode === 'lumpsum'
+                ? (newTotal ?? (currentState as LumpsumState).totalAmount)
+                : (newTotal ?? (currentState as SIPState).monthlyAmount);
+
+            if (inputMode === 'percentage') {
+                const newAllocations = currentState.allocations.map(a => ({
                     ...a,
                     amount: Math.round((a.percentage / 100) * total * 100) / 100,
                 }));
-                return { ...prev, totalAmount: total, allocations: newAllocations, inputMode: mode };
+                return {
+                    ...prev,
+                    [stateKey]: {
+                        ...currentState,
+                        ...(mode === 'lumpsum' ? { totalAmount: total } : { monthlyAmount: total }),
+                        inputMode,
+                        allocations: newAllocations,
+                    },
+                };
             } else {
-                // Calculate percentages from amounts
-                const sumAmounts = prev.allocations.reduce((sum, a) => sum + a.amount, 0);
-                const newAllocations = prev.allocations.map(a => ({
+                const sumAmounts = currentState.allocations.reduce((sum, a) => sum + a.amount, 0);
+                const newAllocations = currentState.allocations.map(a => ({
                     ...a,
                     percentage: sumAmounts > 0 ? Math.round((a.amount / sumAmounts) * 10000) / 100 : 0,
                 }));
-                return { ...prev, totalAmount: sumAmounts, allocations: newAllocations, inputMode: mode };
+                return {
+                    ...prev,
+                    [stateKey]: {
+                        ...currentState,
+                        ...(mode === 'lumpsum' ? { totalAmount: sumAmounts } : { monthlyAmount: sumAmounts }),
+                        inputMode,
+                        allocations: newAllocations,
+                    },
+                };
             }
         });
     };
@@ -191,6 +262,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             currency,
             setLoan,
             setInvestment,
+            setLumpsum,
+            setSIP,
             setCurrency,
             updateAllocation,
             addAllocation,

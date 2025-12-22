@@ -2,6 +2,7 @@
 // All rates are annual percentages
 
 export type RiskLevel = 'very_low' | 'low' | 'medium' | 'medium_high' | 'high' | 'very_high';
+export type InvestmentMode = 'lumpsum' | 'sip';
 
 export interface InstrumentProfile {
     id: string;
@@ -11,6 +12,8 @@ export interface InstrumentProfile {
     returnGuarantee: number; // 0-100%
     description: string;
     requiresCountry?: boolean;
+    supportedModes: InvestmentMode[];
+    defaultTaxRate: number; // 0-100%
 }
 
 export const RISK_COLORS: Record<RiskLevel, string> = {
@@ -39,6 +42,18 @@ export const INVESTMENT_INSTRUMENTS: InstrumentProfile[] = [
         riskLevel: 'very_low',
         returnGuarantee: 98,
         description: 'Bank fixed deposits with guaranteed returns',
+        supportedModes: ['lumpsum'],
+        defaultTaxRate: 30,
+    },
+    {
+        id: 'rd',
+        name: 'Recurring Deposit',
+        defaultRate: 6.5,
+        riskLevel: 'very_low',
+        returnGuarantee: 98,
+        description: 'Monthly deposits with guaranteed returns',
+        supportedModes: ['sip'],
+        defaultTaxRate: 30,
     },
     {
         id: 'govt_bonds',
@@ -47,6 +62,8 @@ export const INVESTMENT_INSTRUMENTS: InstrumentProfile[] = [
         riskLevel: 'low',
         returnGuarantee: 95,
         description: 'Sovereign bonds backed by government',
+        supportedModes: ['lumpsum'],
+        defaultTaxRate: 20,
     },
     {
         id: 'corp_bonds',
@@ -55,6 +72,8 @@ export const INVESTMENT_INSTRUMENTS: InstrumentProfile[] = [
         riskLevel: 'medium',
         returnGuarantee: 70,
         description: 'Bonds issued by corporations',
+        supportedModes: ['lumpsum'],
+        defaultTaxRate: 30,
     },
     {
         id: 'gold',
@@ -63,6 +82,8 @@ export const INVESTMENT_INSTRUMENTS: InstrumentProfile[] = [
         riskLevel: 'medium',
         returnGuarantee: 60,
         description: 'Physical gold or gold ETFs',
+        supportedModes: ['lumpsum', 'sip'],
+        defaultTaxRate: 20,
     },
     {
         id: 'mutual_funds',
@@ -72,6 +93,8 @@ export const INVESTMENT_INSTRUMENTS: InstrumentProfile[] = [
         returnGuarantee: 50,
         description: 'Diversified fund investments',
         requiresCountry: true,
+        supportedModes: ['lumpsum', 'sip'],
+        defaultTaxRate: 15,
     },
     {
         id: 'equity',
@@ -81,6 +104,8 @@ export const INVESTMENT_INSTRUMENTS: InstrumentProfile[] = [
         returnGuarantee: 30,
         description: 'Individual stock investments',
         requiresCountry: true,
+        supportedModes: ['lumpsum'],
+        defaultTaxRate: 15,
     },
 ];
 
@@ -93,6 +118,10 @@ export const COUNTRY_OPTIONS = [
 
 export function getInstrumentById(id: string): InstrumentProfile | undefined {
     return INVESTMENT_INSTRUMENTS.find(i => i.id === id);
+}
+
+export function getInstrumentsByMode(mode: InvestmentMode): InstrumentProfile[] {
+    return INVESTMENT_INSTRUMENTS.filter(i => i.supportedModes.includes(mode));
 }
 
 export function getRiskColor(level: RiskLevel): string {

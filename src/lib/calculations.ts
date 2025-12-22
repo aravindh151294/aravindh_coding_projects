@@ -414,3 +414,181 @@ export function calculateNetSavings(
   return Math.round((investmentReturns - loanTotalInterest - loanPenalty) * 100) / 100;
 }
 
+/**
+ * SIP Allocation with tax rate
+ */
+export interface SIPAllocation {
+  instrumentId: string;
+  amount: number;
+  percentage: number;
+  annualRate: number; // User's expected XIRR
+  taxRate: number;
+}
+
+/**
+ * Calculate SIP maturity using future value of annuity formula
+ * FV = PMT × [((1+r)^n - 1) / r]
+ * where r = monthly rate, n = months
+ */
+export function calculateSIPMaturity(
+  monthlyAmount: number,
+  annualRate: number,
+  months: number
+): { maturityAmount: number; totalInvested: number; gain: number } {
+  const monthlyRate = annualRate / 12 / 100;
+  const totalInvested = monthlyAmount * months;
+
+  let maturityAmount: number;
+  if (monthlyRate === 0) {
+    maturityAmount = totalInvested;
+  } else {
+    // Future Value of Annuity: PMT × [((1+r)^n - 1) / r]
+    maturityAmount = monthlyAmount * ((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate);
+  }
+
+  return {
+    maturityAmount: Math.round(maturityAmount * 100) / 100,
+    totalInvested,
+    gain: Math.round((maturityAmount - totalInvested) * 100) / 100,
+  };
+}
+
+/**
+ * Calculate weighted average rate for SIP portfolio
+ */
+export function calculateWeightedSIPRate(allocations: SIPAllocation[]): number {
+  const totalPercentage = allocations.reduce((sum, a) => sum + a.percentage, 0);
+  if (totalPercentage === 0) return 0;
+
+  const weighted = allocations.reduce((sum, a) => sum + (a.percentage * a.annualRate), 0);
+  return Math.round((weighted / totalPercentage) * 100) / 100;
+}
+
+/**
+ * Calculate SIP portfolio maturity with multiple allocations
+ */
+export function calculateSIPPortfolioMaturity(
+  monthlyTotal: number,
+  allocations: SIPAllocation[],
+  months: number,
+  applyTax: boolean = false
+): {
+  maturityAmount: number;
+  totalInvested: number;
+  totalGain: number;
+  weightedRate: number;
+  allocationReturns: { instrumentId: string; invested: number; maturity: number; gain: number; postTaxGain: number }[];
+} {
+  const allocationReturns = allocations.map(a => {
+    const monthlyAmount = (a.percentage / 100) * monthlyTotal;
+    const result = calculateSIPMaturity(monthlyAmount, a.annualRate, months);
+    const postTaxGain = applyTax ? result.gain * (1 - a.taxRate / 100) : result.gain;
+
+    return {
+      instrumentId: a.instrumentId,
+      invested: result.totalInvested,
+      maturity: result.maturityAmount,
+      gain: result.gain,
+      postTaxGain: Math.round(postTaxGain * 100) / 100,
+    };
+  });
+
+  const totalInvested = allocationReturns.reduce((sum, r) => sum + r.invested, 0);
+  const totalGain = applyTax
+    ? allocationReturns.reduce((sum, r) => sum + r.postTaxGain, 0)
+    : allocationReturns.reduce((sum, r) => sum + r.gain, 0);
+  const maturityAmount = totalInvested + totalGain;
+  const weightedRate = calculateWeightedSIPRate(allocations);
+
+  return {
+    maturityAmount: Math.round(maturityAmount * 100) / 100,
+    totalInvested,
+    totalGain: Math.round(totalGain * 100) / 100,
+    weightedRate,
+    allocationReturns,
+  };
+}
+
+/**
+ * Calculate break-even month: when SIP maturity equals Lumpsum maturity
+ * Returns -1 if SIP never catches up within maxMonths
+ */
+export function calculateLumpsumVsSIPBreakeven(
+  lumpsumAmount: number,
+  lumpsumRate: number,
+  sipMonthlyAmount: number,
+  sipRate: number,
+  maxMonths: number = 360
+): number {
+  const lumpsumMonthlyRate = lumpsumRate / 12 / 100;
+  const sipMonthlyRate = sipRate / 12 / 100;
+
+  for (let month = 1; month <= maxMonths; month++) {
+    const lumpsumValue = lumpsumAmount * Math.pow(1 + lumpsumMonthlyRate, month);
+
+    let sipValue: number;
+    if (sipMonthlyRate === 0) {
+      sipValue = sipMonthlyAmount * month;
+    } else {
+      sipValue = sipMonthlyAmount * ((Math.pow(1 + sipMonthlyRate, month) - 1) / sipMonthlyRate);
+    }
+
+    if (sipValue >= lumpsumValue) {
+      return month;
+    }
+  }
+
+  return -1;
+}
+
+/**
+ * Generate Lumpsum vs SIP comparison data over time
+ */
+export function generateLumpsumVsSIPComparison(
+  lumpsumAmount: number,
+  lumpsumRate: number,
+  sipMonthlyAmount: number,
+  sipRate: number,
+  months: number
+): {
+  data: { month: number; lumpsum: number; sip: number }[];
+  breakEvenMonth: number;
+  finalLumpsum: number;
+  finalSIP: number;
+} {
+  const lumpsumMonthlyRate = lumpsumRate / 12 / 100;
+  const sipMonthlyRate = sipRate / 12 / 100;
+  const data: { month: number; lumpsum: number; sip: number }[] = [];
+  let breakEvenMonth = -1;
+
+  for (let month = 0; month <= months; month++) {
+    const lumpsum = lumpsumAmount * Math.pow(1 + lumpsumMonthlyRate, month);
+
+    let sip: number;
+    if (month === 0) {
+      sip = 0;
+    } else if (sipMonthlyRate === 0) {
+      sip = sipMonthlyAmount * month;
+    } else {
+      sip = sipMonthlyAmount * ((Math.pow(1 + sipMonthlyRate, month) - 1) / sipMonthlyRate);
+    }
+
+    data.push({
+      month,
+      lumpsum: Math.round(lumpsum * 100) / 100,
+      sip: Math.round(sip * 100) / 100,
+    });
+
+    if (breakEvenMonth === -1 && sip >= lumpsum && month > 0) {
+      breakEvenMonth = month;
+    }
+  }
+
+  return {
+    data,
+    breakEvenMonth,
+    finalLumpsum: data[data.length - 1].lumpsum,
+    finalSIP: data[data.length - 1].sip,
+  };
+}
+

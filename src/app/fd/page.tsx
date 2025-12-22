@@ -1,367 +1,390 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Card, CardHeader, Button, Input, Select, Toggle, Hint, StatCard, Tabs } from '@/components/ui';
+import { Card, CardHeader, Input, Select, Toggle, Hint, StatCard, Tabs } from '@/components/ui';
 import { AllocationChart } from '@/components/charts';
-import { AllocationManager, RiskMeter } from '@/components/investment';
-import { useAppState } from '@/context/AppContext';
+import { useAppState, InvestmentAllocation } from '@/context/AppContext';
 import { useFormatters, formatDuration } from '@/hooks/useFormatters';
 import { COMPOUNDING_OPTIONS, HINTS } from '@/lib/constants';
 import {
     calculatePortfolioMaturity,
     calculateWeightedAverageRate,
-    calculateFDTax,
-    adjustForInflation,
-    calculateFDMaturity
+    calculateSIPPortfolioMaturity,
+    calculateWeightedSIPRate,
 } from '@/lib/calculations';
-import { getInstrumentById, RISK_LABELS } from '@/lib/riskProfiles';
+import { getInstrumentById, getInstrumentsByMode, RISK_LABELS, InvestmentMode } from '@/lib/riskProfiles';
 
 export default function InvestmentPage() {
-    const { investment, setInvestment, currency } = useAppState();
+    const {
+        investment,
+        setInvestment,
+        setLumpsum,
+        setSIP,
+        updateAllocation,
+        addAllocation,
+        removeAllocation,
+        recalculateAllocations,
+        loan,
+        currency,
+    } = useAppState();
     const { formatEUR, formatINR, formatPercent } = useFormatters();
-    const [showBreakdown, setShowBreakdown] = useState(false);
-    const [activeTab, setActiveTab] = useState('allocations');
 
     const convertToINR = (eur: number) => eur * currency.eurToInr;
 
-    // Calculate portfolio results
-    const result = useMemo(() => {
-        const portfolioResult = calculatePortfolioMaturity(
-            investment.totalAmount,
-            investment.allocations,
+    // Lumpsum calculations
+    const lumpsumResult = useMemo(() => {
+        const totalAmount = investment.lumpsum.linkedToLoan
+            ? loan.principal
+            : investment.lumpsum.totalAmount;
+
+        const allocationsWithTax = investment.lumpsum.allocations.map(a => ({
+            ...a,
+            amount: (a.percentage / 100) * totalAmount,
+        }));
+
+        const result = calculatePortfolioMaturity(
+            totalAmount,
+            allocationsWithTax,
             investment.termMonths,
             investment.compoundingFrequency
         );
 
-        const taxAmount = investment.includeTax
-            ? calculateFDTax(portfolioResult.totalInterest, investment.taxRate)
-            : 0;
-        const afterTaxInterest = portfolioResult.totalInterest - taxAmount;
+        // Apply taxes per allocation
+        let totalTaxPaid = 0;
+        const afterTaxInterest = allocationsWithTax.reduce((sum, a, i) => {
+            const allocationInterest = result.allocationReturns[i]?.interest || 0;
+            const tax = allocationInterest * (a.taxRate / 100);
+            totalTaxPaid += tax;
+            return sum + (allocationInterest - tax);
+        }, 0);
 
-        const years = investment.termMonths / 12;
-        const inflationAdjusted = investment.adjustInflation
-            ? adjustForInflation(portfolioResult.maturityAmount - taxAmount, years, investment.inflationRate)
-            : portfolioResult.maturityAmount - taxAmount;
+        return {
+            ...result,
+            totalAmount,
+            totalTaxPaid,
+            afterTaxInterest,
+            netMaturity: totalAmount + afterTaxInterest,
+        };
+    }, [investment.lumpsum, investment.termMonths, investment.compoundingFrequency, loan.principal]);
 
-        const effectiveReturn = investment.adjustInflation
-            ? portfolioResult.weightedRate - investment.inflationRate
-            : portfolioResult.weightedRate;
+    // SIP calculations
+    const sipResult = useMemo(() => {
+        const allocationsWithTax = investment.sip.allocations.map(a => ({
+            instrumentId: a.instrumentId,
+            amount: (a.percentage / 100) * investment.sip.monthlyAmount,
+            percentage: a.percentage,
+            annualRate: a.annualRate,
+            taxRate: a.taxRate,
+        }));
 
-        // Calculate weighted risk score (0-100)
+        return calculateSIPPortfolioMaturity(
+            investment.sip.monthlyAmount,
+            allocationsWithTax,
+            investment.termMonths,
+            true // Apply tax
+        );
+    }, [investment.sip, investment.termMonths]);
+
+    // Risk calculation helper
+    const calculateRiskScore = (allocations: InvestmentAllocation[]) => {
         const riskScoreMap: Record<string, number> = {
             'very_low': 10, 'low': 25, 'medium': 50, 'medium_high': 70, 'high': 85, 'very_high': 95
         };
-        const weightedRisk = investment.allocations.reduce((sum, a) => {
+        const totalPct = allocations.reduce((s, a) => s + a.percentage, 0);
+        if (totalPct === 0) return 0;
+        return allocations.reduce((sum, a) => {
             const inst = getInstrumentById(a.instrumentId);
             return sum + (a.percentage * (inst ? riskScoreMap[inst.riskLevel] : 50));
-        }, 0) / 100;
+        }, 0) / totalPct;
+    };
 
-        return {
-            ...portfolioResult,
-            taxAmount,
-            afterTaxInterest,
-            inflationAdjusted,
-            effectiveReturn,
-            weightedRisk,
-        };
-    }, [investment]);
+    const lumpsumRisk = calculateRiskScore(investment.lumpsum.allocations);
+    const sipRisk = calculateRiskScore(investment.sip.allocations);
 
-    // Chart data
-    const chartData = result.growthData
-        .filter((_, i) => i % 3 === 0 || i === result.growthData.length - 1)
-        .map((d, i) => ({
-            label: i % 4 === 0 ? `Y${Math.floor(d.month / 12)}` : '',
-            value: d.amount,
-        }));
+    // Render allocation row for either mode
+    const renderAllocationRow = (mode: InvestmentMode, alloc: InvestmentAllocation, index: number) => {
+        const inst = getInstrumentById(alloc.instrumentId);
+        if (!inst) return null;
 
-    // Allocation breakdown for doughnut
-    const allocationData = investment.allocations.map(a => {
-        const inst = getInstrumentById(a.instrumentId);
-        return { name: inst?.name || a.instrumentId, value: a.amount };
-    });
+        return (
+            <div key={`${alloc.instrumentId}-${index}`} className="p-4 bg-white border border-gray-200 rounded-xl space-y-3">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h4 className="font-semibold text-gray-800">{inst.name}</h4>
+                        <span className="text-xs text-gray-500">{RISK_LABELS[inst.riskLevel]} Risk</span>
+                    </div>
+                    {(mode === 'lumpsum' ? investment.lumpsum.allocations : investment.sip.allocations).length > 1 && (
+                        <button
+                            onClick={() => removeAllocation(mode, index)}
+                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    )}
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                    <Input
+                        label="Rate (%)"
+                        type="number"
+                        step="0.1"
+                        value={alloc.annualRate}
+                        onChange={(e) => updateAllocation(mode, index, { annualRate: Number(e.target.value) })}
+                    />
+                    <Input
+                        label="Allocation (%)"
+                        type="number"
+                        step="1"
+                        value={alloc.percentage}
+                        onChange={(e) => updateAllocation(mode, index, { percentage: Number(e.target.value) })}
+                    />
+                    <Input
+                        label="Tax (%)"
+                        type="number"
+                        step="1"
+                        value={alloc.taxRate}
+                        onChange={(e) => updateAllocation(mode, index, { taxRate: Number(e.target.value) })}
+                    />
+                </div>
+            </div>
+        );
+    };
+
+    // Available instruments for adding
+    const getLumpsumInstruments = () => getInstrumentsByMode('lumpsum').filter(
+        i => !investment.lumpsum.allocations.some(a => a.instrumentId === i.id)
+    );
+    const getSIPInstruments = () => getInstrumentsByMode('sip').filter(
+        i => !investment.sip.allocations.some(a => a.instrumentId === i.id)
+    );
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 p-4 pb-24 md:pb-8">
+            <div className="max-w-4xl mx-auto space-y-6">
+                {/* Header */}
+                <div className="text-center mb-6">
                     <h1 className="text-2xl font-bold text-gray-800">Investment Planner</h1>
-                    <p className="text-gray-600">Multi-instrument portfolio with risk analysis</p>
-                </div>
-                <Button variant="ghost" onClick={() => setInvestment({
-                    allocations: [{ instrumentId: 'fd', amount: 100000, percentage: 100, annualRate: 7 }],
-                    totalAmount: 100000,
-                })}>
-                    Reset
-                </Button>
-            </div>
-
-            <div className="grid lg:grid-cols-3 gap-6">
-                {/* Left Panel - Inputs */}
-                <div className="lg:col-span-1 space-y-4">
-                    {/* Tabs for mobile-friendly navigation */}
-                    <Tabs
-                        tabs={[
-                            { id: 'allocations', label: 'Portfolio' },
-                            { id: 'settings', label: 'Settings' },
-                        ]}
-                        activeTab={activeTab}
-                        onChange={setActiveTab}
-                    />
-
-                    {activeTab === 'allocations' && (
-                        <>
-                            <Card>
-                                <CardHeader
-                                    title="Portfolio Allocation"
-                                    subtitle="Select instruments and allocate funds"
-                                />
-                                <AllocationManager />
-                            </Card>
-
-                            <Card>
-                                <CardHeader title="Term" />
-                                <Input
-                                    label="Investment Duration"
-                                    type="number"
-                                    suffix="months"
-                                    value={investment.termMonths}
-                                    onChange={(e) => setInvestment({ termMonths: Number(e.target.value) })}
-                                    hint={formatDuration(investment.termMonths)}
-                                />
-                            </Card>
-                        </>
-                    )}
-
-                    {activeTab === 'settings' && (
-                        <>
-                            <Card>
-                                <CardHeader title="Compounding & Payout" />
-                                <div className="space-y-4">
-                                    <Select
-                                        label="Compounding Frequency"
-                                        options={COMPOUNDING_OPTIONS.map(o => ({ value: o.value, label: o.label }))}
-                                        value={investment.compoundingFrequency}
-                                        onChange={(e) => setInvestment({
-                                            compoundingFrequency: e.target.value as typeof investment.compoundingFrequency
-                                        })}
-                                    />
-                                    <Select
-                                        label="Payout Type"
-                                        options={[
-                                            { value: 'cumulative', label: 'At Maturity (Cumulative)' },
-                                            { value: 'monthly', label: 'Monthly Payout' },
-                                            { value: 'quarterly', label: 'Quarterly Payout' },
-                                            { value: 'yearly', label: 'Yearly Payout' },
-                                        ]}
-                                        value={investment.payoutType}
-                                        onChange={(e) => setInvestment({ payoutType: e.target.value as typeof investment.payoutType })}
-                                    />
-                                </div>
-                            </Card>
-
-                            <Card>
-                                <CardHeader title="Adjustments" />
-                                <div className="space-y-4">
-                                    <Toggle
-                                        label="Include Tax Deduction"
-                                        checked={investment.includeTax}
-                                        onChange={(val) => setInvestment({ includeTax: val })}
-                                    />
-                                    {investment.includeTax && (
-                                        <Input
-                                            label="Tax Rate"
-                                            type="number"
-                                            suffix="%"
-                                            value={investment.taxRate}
-                                            onChange={(e) => setInvestment({ taxRate: Number(e.target.value) })}
-                                        />
-                                    )}
-                                    <Toggle
-                                        label="Adjust for Inflation"
-                                        checked={investment.adjustInflation}
-                                        onChange={(val) => setInvestment({ adjustInflation: val })}
-                                    />
-                                    {investment.adjustInflation && (
-                                        <Input
-                                            label="Inflation Rate"
-                                            type="number"
-                                            suffix="%"
-                                            value={investment.inflationRate}
-                                            onChange={(e) => setInvestment({ inflationRate: Number(e.target.value) })}
-                                        />
-                                    )}
-                                </div>
-                            </Card>
-                        </>
-                    )}
-
-                    <Hint type="tip">{HINTS.fd.compounding}</Hint>
+                    <p className="text-gray-600 text-sm">Compare Lumpsum and SIP strategies</p>
                 </div>
 
-                {/* Right Panel - Results */}
-                <div className="lg:col-span-2 space-y-6">
-                    {/* Portfolio Risk Overview */}
-                    <Card>
-                        <div className="flex items-center justify-between mb-4">
-                            <div>
-                                <h3 className="font-semibold text-gray-800">Portfolio Risk Level</h3>
-                                <p className="text-sm text-gray-500">Weighted average across all instruments</p>
-                            </div>
-                            <span className="text-2xl font-bold" style={{
-                                color: result.weightedRisk < 30 ? '#10b981' : result.weightedRisk < 60 ? '#f59e0b' : '#ef4444'
-                            }}>
-                                {result.weightedRisk < 30 ? 'Low' : result.weightedRisk < 60 ? 'Medium' : 'High'}
-                            </span>
-                        </div>
-                        <RiskMeter riskScore={result.weightedRisk} size="md" />
-                    </Card>
+                {/* Tabs */}
+                <Tabs
+                    tabs={[
+                        { id: 'lumpsum', label: 'Lumpsum' },
+                        { id: 'sip', label: 'SIP' },
+                    ]}
+                    activeTab={investment.activeTab}
+                    onChange={(tab) => setInvestment({ activeTab: tab as 'lumpsum' | 'sip' })}
+                />
 
-                    {/* Key Metrics */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <StatCard
-                            label="Portfolio Value"
-                            value={formatEUR(result.maturityAmount)}
-                            subValue={formatINR(convertToINR(result.maturityAmount))}
+                {/* Shared Settings */}
+                <Card>
+                    <CardHeader title="Investment Settings" />
+                    <div className="grid md:grid-cols-2 gap-4">
+                        <Select
+                            label="Duration"
+                            options={[
+                                { value: '12', label: '1 Year' },
+                                { value: '24', label: '2 Years' },
+                                { value: '36', label: '3 Years' },
+                                { value: '60', label: '5 Years' },
+                                { value: '84', label: '7 Years' },
+                                { value: '120', label: '10 Years' },
+                            ]}
+                            value={investment.termMonths.toString()}
+                            onChange={(e) => setInvestment({ termMonths: Number(e.target.value) })}
                         />
-                        <StatCard
-                            label="Total Returns"
-                            value={formatEUR(result.totalInterest)}
-                            subValue={formatINR(convertToINR(result.totalInterest))}
-                            trend="up"
-                        />
-                        <StatCard
-                            label="Weighted Rate"
-                            value={formatPercent(result.weightedRate)}
-                            subValue={investment.adjustInflation ? `Real: ${formatPercent(result.effectiveReturn)}` : 'Nominal'}
-                            trend={result.effectiveReturn > 0 ? 'up' : 'down'}
-                        />
-                        <StatCard
-                            label="After Tax"
-                            value={investment.includeTax ? formatEUR(result.afterTaxInterest) : formatEUR(result.totalInterest)}
-                            subValue={investment.includeTax ? `Tax: ${formatEUR(result.taxAmount)}` : 'No tax applied'}
+                        <Select
+                            label="Compounding"
+                            options={[...COMPOUNDING_OPTIONS]}
+                            value={investment.compoundingFrequency}
+                            onChange={(e) => setInvestment({ compoundingFrequency: e.target.value as 'monthly' | 'quarterly' | 'half-yearly' | 'yearly' })}
                         />
                     </div>
-
-                    {/* Allocation Breakdown - Collapsible */}
-                    <Card>
-                        <div
-                            className="flex items-center justify-between cursor-pointer"
-                            onClick={() => setShowBreakdown(!showBreakdown)}
-                        >
-                            <CardHeader title="Allocation Breakdown" subtitle="Returns per instrument" />
-                            <svg
-                                className={`w-5 h-5 text-gray-400 transition-transform ${showBreakdown ? 'rotate-180' : ''}`}
-                                fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                            >
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
-                        </div>
-                        {showBreakdown && (
-                            <div className="mt-4 space-y-3">
-                                {investment.allocations.map((a, i) => {
-                                    const inst = getInstrumentById(a.instrumentId);
-                                    const returnData = result.allocationReturns[i];
-                                    return (
-                                        <div key={a.instrumentId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                            <div>
-                                                <span className="font-medium text-gray-800">{inst?.name}</span>
-                                                <span className="text-sm text-gray-500 ml-2">({formatPercent(a.percentage)})</span>
-                                            </div>
-                                            <div className="text-right">
-                                                <div className="font-semibold text-gray-800">{formatEUR(returnData?.amount || 0)}</div>
-                                                <div className="text-sm text-green-600">+{formatEUR(returnData?.interest || 0)}</div>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                    <div className="mt-4 flex items-center gap-4">
+                        <Toggle
+                            label="Adjust for Inflation"
+                            checked={investment.adjustInflation}
+                            onChange={(v) => setInvestment({ adjustInflation: v })}
+                        />
+                        {investment.adjustInflation && (
+                            <Input
+                                label="Inflation %"
+                                type="number"
+                                step="0.1"
+                                value={investment.inflationRate}
+                                onChange={(e) => setInvestment({ inflationRate: Number(e.target.value) })}
+                                className="w-24"
+                            />
                         )}
-                    </Card>
+                    </div>
+                </Card>
 
-                    {/* Portfolio Distribution Charts */}
-                    <Card>
-                        <CardHeader title="Portfolio Distribution" subtitle="Initial vs Projected Value" />
-                        <div className="grid md:grid-cols-2 gap-8">
-                            {/* Initial Allocation */}
-                            <div>
-                                <h4 className="text-center font-semibold mb-4 text-gray-700">Initial Investment</h4>
-                                <AllocationChart
-                                    allocations={investment.allocations.map(a => {
-                                        const inst = getInstrumentById(a.instrumentId);
-                                        return {
-                                            name: inst?.name || a.instrumentId,
-                                            amount: a.amount,
-                                            color: '#3b82f6', // Color handled by component based on index
-                                        };
-                                    })}
-                                    title={formatEUR(investment.totalAmount)}
-                                />
-                            </div>
+                {/* Lumpsum Tab Content */}
+                {investment.activeTab === 'lumpsum' && (
+                    <>
+                        <Card>
+                            <CardHeader title="Lumpsum Investment" subtitle="One-time investment allocation" />
 
-                            {/* Projected Allocation */}
-                            <div>
-                                <h4 className="text-center font-semibold mb-4 text-gray-700">Projected Value</h4>
-                                <AllocationChart
-                                    allocations={investment.allocations.map(a => {
-                                        const inst = getInstrumentById(a.instrumentId);
-                                        // Calculate maturity for this specific portion
-                                        const maturity = calculateFDMaturity(
-                                            a.amount,
-                                            a.annualRate,
-                                            investment.termMonths,
-                                            investment.compoundingFrequency
-                                        ).maturityAmount;
-
-                                        return {
-                                            name: inst?.name || a.instrumentId,
-                                            amount: maturity,
-                                            color: '#3b82f6',
-                                        };
-                                    })}
-                                    title={formatEUR(result.maturityAmount)}
-                                />
-                            </div>
-                        </div>
-                    </Card>
-
-                    {/* Summary */}
-                    <Card variant="gradient">
-                        <div className="text-center py-4">
-                            <h3 className="text-xl font-bold mb-4">Investment Summary</h3>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="bg-white/20 rounded-xl p-4">
-                                    <p className="text-sm text-white/80">You Invest</p>
-                                    <p className="text-2xl font-bold">{formatEUR(investment.totalAmount)}</p>
-                                    <p className="text-xs text-white/60">{formatINR(convertToINR(investment.totalAmount))}</p>
-                                </div>
-                                <div className="bg-white/20 rounded-xl p-4">
-                                    <p className="text-sm text-white/80">You Get</p>
-                                    <p className="text-2xl font-bold">
-                                        {investment.includeTax
-                                            ? formatEUR(result.maturityAmount - result.taxAmount)
-                                            : formatEUR(result.maturityAmount)
-                                        }
-                                    </p>
-                                    <p className="text-xs text-white/60">
-                                        {investment.includeTax
-                                            ? formatINR(convertToINR(result.maturityAmount - result.taxAmount))
-                                            : formatINR(convertToINR(result.maturityAmount))
-                                        }
-                                    </p>
+                            {/* Linked to Loan Toggle */}
+                            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <span className="text-sm font-medium text-blue-800">Linked to Loan</span>
+                                        <p className="text-xs text-blue-600">Amount matches your loan principal</p>
+                                    </div>
+                                    <Toggle
+                                        label=""
+                                        checked={investment.lumpsum.linkedToLoan}
+                                        onChange={(v) => setLumpsum({ linkedToLoan: v })}
+                                    />
                                 </div>
                             </div>
-                            {investment.adjustInflation && (
-                                <div className="mt-4 bg-white/10 rounded-xl p-3">
-                                    <p className="text-sm text-white/80">Real Value (Inflation Adjusted)</p>
-                                    <p className="text-lg font-bold">{formatEUR(result.inflationAdjusted)}</p>
-                                </div>
+
+                            {/* Amount Input */}
+                            <Input
+                                label="Total Investment"
+                                type="number"
+                                prefix="€"
+                                value={investment.lumpsum.linkedToLoan ? loan.principal : investment.lumpsum.totalAmount}
+                                disabled={investment.lumpsum.linkedToLoan}
+                                onChange={(e) => setLumpsum({ totalAmount: Number(e.target.value) })}
+                            />
+                            {investment.lumpsum.linkedToLoan && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                    ℹ️ Amount is locked to loan principal ({formatEUR(loan.principal)})
+                                </p>
                             )}
+
+                            {/* Allocations */}
+                            <div className="mt-4 space-y-3">
+                                <h4 className="text-sm font-medium text-gray-700">Allocations</h4>
+                                {investment.lumpsum.allocations.map((a, i) => renderAllocationRow('lumpsum', a, i))}
+
+                                {getLumpsumInstruments().length > 0 && (
+                                    <Select
+                                        label="Add Instrument"
+                                        options={[
+                                            { value: '', label: 'Select to add...' },
+                                            ...getLumpsumInstruments().map(i => ({ value: i.id, label: i.name }))
+                                        ]}
+                                        value=""
+                                        onChange={(e) => e.target.value && addAllocation('lumpsum', e.target.value)}
+                                    />
+                                )}
+                            </div>
+                        </Card>
+
+                        {/* Lumpsum Results */}
+                        <div className="grid md:grid-cols-3 gap-4">
+                            <StatCard
+                                label="Maturity Value"
+                                value={formatEUR(lumpsumResult.netMaturity)}
+                                subValue={formatINR(convertToINR(lumpsumResult.netMaturity))}
+                                trend="up"
+                            />
+                            <StatCard
+                                label="Total Returns"
+                                value={formatEUR(lumpsumResult.afterTaxInterest)}
+                                subValue={`After ${formatEUR(lumpsumResult.totalTaxPaid)} tax`}
+                                trend="up"
+                            />
+                            <StatCard
+                                label="Weighted CAGR"
+                                value={formatPercent(lumpsumResult.weightedRate)}
+                                subValue={`Risk: ${Math.round(lumpsumRisk)}%`}
+                            />
                         </div>
-                    </Card>
-                </div>
+                    </>
+                )}
+
+                {/* SIP Tab Content */}
+                {investment.activeTab === 'sip' && (
+                    <>
+                        <Card>
+                            <CardHeader title="SIP Investment" subtitle="Monthly systematic investment" />
+
+                            <Input
+                                label="Monthly Amount"
+                                type="number"
+                                prefix="€"
+                                value={investment.sip.monthlyAmount}
+                                onChange={(e) => setSIP({ monthlyAmount: Number(e.target.value) })}
+                            />
+
+                            {/* Allocations */}
+                            <div className="mt-4 space-y-3">
+                                <h4 className="text-sm font-medium text-gray-700">Allocations</h4>
+                                {investment.sip.allocations.map((a, i) => renderAllocationRow('sip', a, i))}
+
+                                {getSIPInstruments().length > 0 && (
+                                    <Select
+                                        label="Add Instrument"
+                                        options={[
+                                            { value: '', label: 'Select to add...' },
+                                            ...getSIPInstruments().map(i => ({ value: i.id, label: i.name }))
+                                        ]}
+                                        value=""
+                                        onChange={(e) => e.target.value && addAllocation('sip', e.target.value)}
+                                    />
+                                )}
+                            </div>
+                        </Card>
+
+                        {/* SIP Results */}
+                        <div className="grid md:grid-cols-3 gap-4">
+                            <StatCard
+                                label="Maturity Value"
+                                value={formatEUR(sipResult.maturityAmount)}
+                                subValue={formatINR(convertToINR(sipResult.maturityAmount))}
+                                trend="up"
+                            />
+                            <StatCard
+                                label="Total Invested"
+                                value={formatEUR(sipResult.totalInvested)}
+                                subValue={`${investment.termMonths} months × ${formatEUR(investment.sip.monthlyAmount)}`}
+                            />
+                            <StatCard
+                                label="Weighted XIRR"
+                                value={formatPercent(sipResult.weightedRate)}
+                                subValue={`Risk: ${Math.round(sipRisk)}%`}
+                            />
+                        </div>
+
+                        {/* SIP Gain Card */}
+                        <Card className="bg-gradient-to-r from-green-500 to-teal-600 text-white">
+                            <div className="text-center">
+                                <p className="text-white/80 text-sm">Total Gain (After Tax)</p>
+                                <p className="text-3xl font-bold">{formatEUR(sipResult.totalGain)}</p>
+                                <p className="text-sm text-white/70 mt-1">
+                                    Return on Investment: {formatPercent((sipResult.totalGain / sipResult.totalInvested) * 100)}
+                                </p>
+                            </div>
+                        </Card>
+                    </>
+                )}
+
+                {/* Summary Comparison */}
+                <Card>
+                    <CardHeader title="Quick Comparison" subtitle="Lumpsum vs SIP at a glance" />
+                    <div className="grid md:grid-cols-2 gap-4">
+                        <div className="p-4 bg-blue-50 rounded-xl">
+                            <h4 className="font-semibold text-blue-800">Lumpsum</h4>
+                            <p className="text-2xl font-bold text-blue-900">{formatEUR(lumpsumResult.netMaturity)}</p>
+                            <p className="text-sm text-blue-600">Invested: {formatEUR(lumpsumResult.totalAmount)}</p>
+                        </div>
+                        <div className="p-4 bg-green-50 rounded-xl">
+                            <h4 className="font-semibold text-green-800">SIP</h4>
+                            <p className="text-2xl font-bold text-green-900">{formatEUR(sipResult.maturityAmount)}</p>
+                            <p className="text-sm text-green-600">Invested: {formatEUR(sipResult.totalInvested)}</p>
+                        </div>
+                    </div>
+                    <Hint type="tip" className="mt-4">
+                        💡 Go to the Compare page for detailed analysis including loan scenarios and break-even timeline.
+                    </Hint>
+                </Card>
             </div>
         </div>
     );
 }
-

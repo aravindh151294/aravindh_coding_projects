@@ -9,17 +9,27 @@ import { calculateEMI, calculatePortfolioMaturity } from '@/lib/calculations';
 import { useAppState, LocalePreference } from '@/context/AppContext';
 
 export default function DashboardPage() {
-  const { investment, currency, setCurrency } = useAppState();
+  const { investment, loan, currency, setCurrency } = useAppState();
   const { formatEUR } = useFormatters();
 
   // Calculate summary values
-  const loanEMI = calculateEMI(DEFAULT_LOAN.principal, DEFAULT_LOAN.annualRate, DEFAULT_LOAN.termMonths);
-  const totalLoanPayment = loanEMI * DEFAULT_LOAN.termMonths;
-  const totalLoanInterest = totalLoanPayment - DEFAULT_LOAN.principal;
+  const loanEMI = calculateEMI(loan.principal, loan.annualRate, loan.termMonths);
+  const totalLoanPayment = loanEMI * loan.termMonths;
+  const totalLoanInterest = totalLoanPayment - loan.principal;
+
+  // Get lumpsum total (linked to loan or custom)
+  const lumpsumTotal = investment.lumpsum.linkedToLoan
+    ? loan.principal
+    : investment.lumpsum.totalAmount;
+
+  const allocationsWithAmount = investment.lumpsum.allocations.map(a => ({
+    ...a,
+    amount: (a.percentage / 100) * lumpsumTotal,
+  }));
 
   const portfolioResult = calculatePortfolioMaturity(
-    investment.totalAmount,
-    investment.allocations,
+    lumpsumTotal,
+    allocationsWithAmount,
     investment.termMonths,
     investment.compoundingFrequency
   );
