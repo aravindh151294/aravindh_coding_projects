@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { formatEUR, formatPercent } from '@/lib/formatters';
+import { useFormatters } from '@/hooks/useFormatters';
 
 interface WhatIfSliderProps {
     label: string;
@@ -29,6 +29,8 @@ export function WhatIfSlider({
     baseValue,
     showDiff = true,
 }: WhatIfSliderProps) {
+    const { formatEUR, formatPercent } = useFormatters();
+
     const formatValue = (val: number) => {
         switch (unit) {
             case 'percent':
@@ -89,6 +91,8 @@ interface WhatIfPanelProps {
  * Panel showing multiple What-If scenario results side by side
  */
 export function WhatIfPanel({ scenarios }: WhatIfPanelProps) {
+    const { formatEUR } = useFormatters();
+
     return (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {scenarios.map((scenario) => {
@@ -123,6 +127,8 @@ interface SensitivityAnalysisProps {
  * Sensitivity analysis showing how results change with different inputs
  */
 export function SensitivityAnalysis({ title, baseValue, variations }: SensitivityAnalysisProps) {
+    const { formatEUR } = useFormatters();
+
     return (
         <div className="space-y-3">
             <h4 className="font-semibold text-gray-800">{title}</h4>

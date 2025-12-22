@@ -15,7 +15,7 @@ import {
     Filler,
 } from 'chart.js';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
-import { formatEUR, formatNumber } from '@/lib/formatters';
+import { formatEURStatic as formatEUR, formatNumberStatic as formatNumber } from '@/hooks/useFormatters';
 
 // Register ChartJS components
 ChartJS.register(

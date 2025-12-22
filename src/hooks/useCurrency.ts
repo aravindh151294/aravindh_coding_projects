@@ -1,11 +1,14 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { DEFAULT_CURRENCY } from '@/lib/constants';
-import { eurToInr, formatEUR, formatINR } from '@/lib/formatters';
+import { useCallback } from 'react';
+import { eurToInr } from '@/lib/formatters';
+import { useFormatters } from '@/hooks/useFormatters';
+import { useAppState } from '@/context/AppContext';
 
 export function useCurrency() {
-    const [exchangeRate, setExchangeRate] = useState(DEFAULT_CURRENCY.eurToInr);
+    const { currency } = useAppState();
+    const exchangeRate = currency.eurToInr;
+    const { formatEUR, formatINR } = useFormatters();
 
     const convertToINR = useCallback((eur: number) => {
         return eurToInr(eur, exchangeRate);
@@ -16,11 +19,10 @@ export function useCurrency() {
             eur: formatEUR(eur),
             inr: formatINR(eurToInr(eur, exchangeRate)),
         };
-    }, [exchangeRate]);
+    }, [exchangeRate, formatEUR, formatINR]);
 
     return {
         exchangeRate,
-        setExchangeRate,
         convertToINR,
         formatBothCurrencies,
         formatEUR,

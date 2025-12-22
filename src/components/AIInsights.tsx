@@ -12,13 +12,13 @@ const financialInsights = [
     "💡 **Prepayment Strategy**: Making even small prepayments early in your loan tenure can save significant interest. The earlier you prepay, the more you save!",
     "📊 **EMI vs Prepayment**: Regular EMI reduces interest linearly, but lump-sum prepayments create exponential savings by reducing principal faster.",
     "💰 **The 10% Rule**: Try to prepay at least 10% of your outstanding principal annually to significantly reduce your loan tenure.",
-    "🎯 **Opportunity Cost**: Before prepaying your loan, compare the effective interest rate (after tax benefits) with potential FD returns.",
-    "📈 **FD Laddering**: Instead of one large FD, create multiple FDs with different maturities for better liquidity and rate optimization.",
+    "🎯 **Investment Diversification**: Use the Investment Planner to spread across FD, Bonds, Gold, and Equity for balanced risk and returns.",
+    "📈 **Risk vs Return**: Higher returns come with higher risk. FDs offer ~6% guaranteed, while equity may give 12%+ but with volatility.",
     "⚠️ **Prepayment Penalty**: Most banks allow prepayment without penalty after 1 year. Check your loan agreement for specific terms.",
     "🔄 **Balance Transfer**: If your current loan rate is 2%+ higher than market rates, consider a balance transfer to save on interest.",
-    "💵 **Tax Impact**: Remember that FD interest is fully taxable. For high tax brackets, consider tax-saving FDs or debt mutual funds.",
-    "📉 **Inflation Matters**: Your real FD returns = FD rate - Inflation rate. A 7% FD with 6% inflation gives only 1% real return.",
-    "🏠 **Home Loan Tip**: Home loan interest up to €2 lakh/year is tax deductible under Section 24(b). Factor this when comparing with FD.",
+    "💵 **Tax Impact**: Investment returns may be taxable. Use the tax toggle in Investment Planner to see post-tax returns.",
+    "📉 **Inflation Matters**: Your real returns = Investment rate - Inflation. A 7% FD with 6% inflation gives only 1% real return.",
+    "🏠 **Home Loan Tip**: Home loan interest up to €2 lakh/year is tax deductible under Section 24(b). Factor this when comparing with investments.",
 ];
 
 export function AIInsights() {
@@ -32,7 +32,7 @@ export function AIInsights() {
         if (isOpen && messages.length === 0) {
             setMessages([{
                 role: 'assistant',
-                content: "👋 Hi! I'm your AI financial assistant. I can help you understand loan strategies, FD investments, and compare different scenarios. Ask me anything!\n\n**Quick questions:**\n- Should I prepay my loan or invest in FD?\n- How can I reduce my loan tenure?\n- What's the best compounding frequency for FD?"
+                content: "👋 Hi! I'm your AI financial assistant. I can help you understand loan strategies, investment portfolios, and compare different scenarios. Ask me anything!\n\n**Quick questions:**\n- Should I prepay my loan or invest?\n- How can I reduce my loan tenure?\n- What's the best allocation for my portfolio?"
             }]);
         }
     }, [isOpen, messages.length]);
@@ -45,15 +45,15 @@ export function AIInsights() {
 
         // Context-aware responses
         if (lowerMessage.includes('prepay') || lowerMessage.includes('prepayment')) {
-            return "🎯 **Prepayment Analysis**\n\nPrepaying your loan is often a smart choice if:\n- Your loan interest rate > Expected FD returns (after tax)\n- You have emergency funds secured\n- Prepayment penalty is minimal (<1-2%)\n\n**Pro tip**: Prepay aggressively in the first half of your loan tenure when interest component is highest!\n\nUse the **Compare** tab to see exact savings between prepayment scenarios and FD investment.";
+            return "🎯 **Prepayment Analysis**\n\nPrepaying your loan is often a smart choice if:\n- Your loan interest rate > Expected investment returns (after tax)\n- You have emergency funds secured\n- Prepayment penalty is minimal (<1-2%)\n\n**Pro tip**: Prepay aggressively in the first half of your loan tenure when interest component is highest!\n\nUse the **Compare** tab to see exact savings between prepayment scenarios and investment.";
         }
 
-        if (lowerMessage.includes('fd') || lowerMessage.includes('fixed deposit')) {
-            return "💰 **FD Investment Tips**\n\n1. **Quarterly compounding** usually offers the best balance of returns and liquidity\n2. Create an **FD ladder** with different maturities\n3. Consider **tax-saving FDs** for 80C benefits (5-year lock-in)\n4. Real returns = FD rate - Inflation - Tax\n\n**Example**: A 7% FD with 30% tax and 6% inflation gives ~(-1.1)% real returns!";
+        if (lowerMessage.includes('invest') || lowerMessage.includes('portfolio') || lowerMessage.includes('allocation')) {
+            return "💰 **Investment Planning Tips**\n\n1. **Diversify** across FD, Bonds, Gold, and Equity\n2. Use **% mode** for easy allocation or **€ mode** for exact amounts\n3. Check the **Risk Meter** to see your portfolio's risk level\n4. Enable **Inflation Adjustment** to see real returns\n\n**Example**: 50% FD + 30% Bonds + 20% Gold gives moderate risk with stable returns!";
         }
 
         if (lowerMessage.includes('compare') || lowerMessage.includes('better') || lowerMessage.includes('should i')) {
-            return "📊 **Loan Prepayment vs FD Investment**\n\n**Prepay if:**\n- Loan rate > FD rate (after tax)\n- You want guaranteed debt reduction\n- Peace of mind from being debt-free\n\n**Invest in FD if:**\n- FD returns > Loan rate (rare)\n- You need liquidity\n- You're claiming full tax benefits on home loan\n\n👉 Use our **Compare** page for a detailed scenario analysis!";
+            return "📊 **Loan Prepayment vs Investment**\n\n**Prepay if:**\n- Loan rate > Investment returns (after tax)\n- You want guaranteed debt reduction\n- Peace of mind from being debt-free\n\n**Invest if:**\n- Expected returns > Loan rate\n- You need liquidity\n- You're claiming full tax benefits on home loan\n\n👉 Use our **Compare** page with the **Sensitivity Slider** for detailed analysis!";
         }
 
         if (lowerMessage.includes('emi') || lowerMessage.includes('monthly payment')) {
@@ -66,7 +66,7 @@ export function AIInsights() {
 
         // Random insight if no specific match
         const randomInsight = financialInsights[Math.floor(Math.random() * financialInsights.length)];
-        return randomInsight + "\n\n*Feel free to ask me specific questions about your loan or FD calculations!*";
+        return randomInsight + "\n\n*Feel free to ask me specific questions about your loan or investment calculations!*";
     }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -140,8 +140,8 @@ export function AIInsights() {
                                 >
                                     <div
                                         className={`max-w-[85%] p-3 rounded-2xl ${msg.role === 'user'
-                                                ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-br-md'
-                                                : 'bg-gray-100 text-gray-800 rounded-bl-md'
+                                            ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-br-md'
+                                            : 'bg-gray-100 text-gray-800 rounded-bl-md'
                                             }`}
                                     >
                                         <div className="text-sm whitespace-pre-wrap" dangerouslySetInnerHTML={{

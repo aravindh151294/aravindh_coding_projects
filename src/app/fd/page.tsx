@@ -279,9 +279,9 @@ export default function InvestmentPage() {
                         )}
                     </Card>
 
-                    {/* Asset Allocation Charts */}
+                    {/* Portfolio Distribution Charts */}
                     <Card>
-                        <CardHeader title="Asset Allocation" subtitle="Initial vs Projected Distribution" />
+                        <CardHeader title="Portfolio Distribution" subtitle="Initial vs Projected Value" />
                         <div className="grid md:grid-cols-2 gap-8">
                             {/* Initial Allocation */}
                             <div>

@@ -5,7 +5,7 @@ import { useAppState, InvestmentAllocation } from '@/context/AppContext';
 import { INVESTMENT_INSTRUMENTS, COUNTRY_OPTIONS, getInstrumentById } from '@/lib/riskProfiles';
 import { Input, Select, Button } from '@/components/ui';
 import { RiskIndicator } from './RiskIndicator';
-import { formatEUR, formatPercent } from '@/lib/formatters';
+import { useFormatters } from '@/hooks/useFormatters';
 
 export function AllocationManager() {
     const {
@@ -16,6 +16,7 @@ export function AllocationManager() {
         removeAllocation,
         recalculateAllocations,
     } = useAppState();
+    const { formatEUR, formatPercent } = useFormatters();
 
     const handleModeSwitch = (mode: 'percentage' | 'amount') => {
         recalculateAllocations(mode);
@@ -64,25 +65,25 @@ export function AllocationManager() {
         <div className="space-y-4">
             {/* Mode Toggle */}
             <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                <span className="text-sm font-medium text-gray-700">Input Mode:</span>
+                <span className="text-sm font-medium text-gray-700">Allocate by:</span>
                 <div className="flex gap-1 p-1 bg-white rounded-lg shadow-sm">
                     <button
                         onClick={() => handleModeSwitch('percentage')}
-                        className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${investment.inputMode === 'percentage'
-                                ? 'bg-blue-500 text-white'
-                                : 'text-gray-600 hover:bg-gray-100'
+                        className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${investment.inputMode === 'percentage'
+                            ? 'bg-blue-500 text-white'
+                            : 'text-gray-600 hover:bg-gray-100'
                             }`}
                     >
-                        Percentage
+                        %
                     </button>
                     <button
                         onClick={() => handleModeSwitch('amount')}
-                        className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${investment.inputMode === 'amount'
-                                ? 'bg-blue-500 text-white'
-                                : 'text-gray-600 hover:bg-gray-100'
+                        className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${investment.inputMode === 'amount'
+                            ? 'bg-blue-500 text-white'
+                            : 'text-gray-600 hover:bg-gray-100'
                             }`}
                     >
-                        Amount
+                        €
                     </button>
                 </div>
             </div>
@@ -188,6 +189,8 @@ function AllocationRow({
     onRemove,
     canRemove,
 }: AllocationRowProps) {
+    const { formatEUR, formatPercent } = useFormatters();
+
     return (
         <div className="p-4 bg-white border border-gray-200 rounded-xl space-y-3">
             {/* Header */}

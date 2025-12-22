@@ -300,16 +300,13 @@ export default function ComparePage() {
                 </div>
             </Card>
 
-            {/* What-If Scenarios */}
+            {/* Sensitivity Analysis */}
             <Card>
-                <CardHeader title="What-If Analysis" subtitle="Adjust the rate variation to explore scenarios" />
-                <div className="space-y-6">
-                    {/* Slider for adjustment */}
-                    <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                            <label className="text-sm font-medium text-gray-700">Rate Variation</label>
-                            <span className="text-sm font-semibold text-blue-600">±{whatIfAdjustment.toFixed(2)}%</span>
-                        </div>
+                <CardHeader title="Sensitivity Analysis" subtitle="Explore rate scenarios" />
+                <div className="space-y-4">
+                    {/* Compact Slider Row */}
+                    <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-xl">
+                        <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Variation:</span>
                         <input
                             type="range"
                             min={0.25}
@@ -317,12 +314,9 @@ export default function ComparePage() {
                             step={0.25}
                             value={whatIfAdjustment}
                             onChange={(e) => setWhatIfAdjustment(Number(e.target.value))}
-                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                            className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
                         />
-                        <div className="flex justify-between text-xs text-gray-400">
-                            <span>±0.25%</span>
-                            <span>±5%</span>
-                        </div>
+                        <span className="text-sm font-bold text-blue-600 w-12 text-right">±{whatIfAdjustment.toFixed(2)}%</span>
                     </div>
 
                     {/* Scenario Cards */}
