@@ -3,6 +3,9 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { DEFAULT_LOAN, DEFAULT_CURRENCY } from '@/lib/constants';
 import { INVESTMENT_INSTRUMENTS } from '@/lib/riskProfiles';
+import { setGlobalLocale } from '@/lib/formatters';
+
+// ... (existing helper types)
 
 // Loan State
 export interface LoanState {
@@ -184,7 +187,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     // Sync global locale setting whenever currency.locale changes
     React.useEffect(() => {
-        const { setGlobalLocale } = require('@/lib/formatters');
         setGlobalLocale(currency.locale);
     }, [currency.locale]);
 

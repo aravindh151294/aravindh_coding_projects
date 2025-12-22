@@ -11,7 +11,8 @@ import {
     calculatePortfolioMaturity,
     calculateWeightedAverageRate,
     calculateFDTax,
-    adjustForInflation
+    adjustForInflation,
+    calculateFDMaturity
 } from '@/lib/calculations';
 import { getInstrumentById, RISK_LABELS } from '@/lib/riskProfiles';
 
@@ -277,20 +278,50 @@ export default function InvestmentPage() {
                         )}
                     </Card>
 
-                    {/* Asset Allocation Chart */}
+                    {/* Asset Allocation Charts */}
                     <Card>
-                        <CardHeader title="Asset Allocation" subtitle="Portfolio distribution" />
-                        <AllocationChart
-                            allocations={investment.allocations.map(a => {
-                                const inst = getInstrumentById(a.instrumentId);
-                                return {
-                                    name: inst?.name || a.instrumentId,
-                                    amount: a.amount,
-                                    color: '#3b82f6',
-                                };
-                            })}
-                            title={formatEUR(investment.totalAmount)}
-                        />
+                        <CardHeader title="Asset Allocation" subtitle="Initial vs Projected Distribution" />
+                        <div className="grid md:grid-cols-2 gap-8">
+                            {/* Initial Allocation */}
+                            <div>
+                                <h4 className="text-center font-semibold mb-4 text-gray-700">Initial Investment</h4>
+                                <AllocationChart
+                                    allocations={investment.allocations.map(a => {
+                                        const inst = getInstrumentById(a.instrumentId);
+                                        return {
+                                            name: inst?.name || a.instrumentId,
+                                            amount: a.amount,
+                                            color: '#3b82f6', // Color handled by component based on index
+                                        };
+                                    })}
+                                    title={formatEUR(investment.totalAmount)}
+                                />
+                            </div>
+
+                            {/* Projected Allocation */}
+                            <div>
+                                <h4 className="text-center font-semibold mb-4 text-gray-700">Projected Value</h4>
+                                <AllocationChart
+                                    allocations={investment.allocations.map(a => {
+                                        const inst = getInstrumentById(a.instrumentId);
+                                        // Calculate maturity for this specific portion
+                                        const maturity = calculateFDMaturity(
+                                            a.amount,
+                                            a.annualRate,
+                                            investment.termMonths,
+                                            investment.compoundingFrequency
+                                        ).maturityAmount;
+
+                                        return {
+                                            name: inst?.name || a.instrumentId,
+                                            amount: maturity,
+                                            color: '#3b82f6',
+                                        };
+                                    })}
+                                    title={formatEUR(result.maturityAmount)}
+                                />
+                            </div>
+                        </div>
                     </Card>
 
                     {/* Summary */}
