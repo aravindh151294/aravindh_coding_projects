@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Card, CardHeader, Button, Input, Select, Toggle, Hint, StatCard, Tabs } from '@/components/ui';
-import { LineChart, DoughnutChart } from '@/components/charts';
+import { AllocationChart } from '@/components/charts';
 import { AllocationManager, RiskMeter } from '@/components/investment';
 import { useAppState } from '@/context/AppContext';
 import { formatEUR, formatINR, formatDuration, formatPercent } from '@/lib/formatters';
@@ -277,14 +277,19 @@ export default function InvestmentPage() {
                         )}
                     </Card>
 
-                    {/* Growth Chart */}
+                    {/* Asset Allocation Chart */}
                     <Card>
-                        <CardHeader title="Portfolio Growth" subtitle="Projected value over time" />
-                        <LineChart
-                            data={chartData}
-                            title="Value (€)"
-                            color="#3b82f6"
-                            fillGradient
+                        <CardHeader title="Asset Allocation" subtitle="Portfolio distribution" />
+                        <AllocationChart
+                            allocations={investment.allocations.map(a => {
+                                const inst = getInstrumentById(a.instrumentId);
+                                return {
+                                    name: inst?.name || a.instrumentId,
+                                    amount: a.amount,
+                                    color: '#3b82f6',
+                                };
+                            })}
+                            title={formatEUR(investment.totalAmount)}
                         />
                     </Card>
 

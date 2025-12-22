@@ -1,4 +1,5 @@
 import React from 'react';
+import { getInputLang } from '@/lib/formatters';
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
     label: string;
@@ -19,6 +20,7 @@ export function Input({
     ...props
 }: InputProps) {
     const inputId = id || label.toLowerCase().replace(/\s+/g, '-');
+    const langAttr = getInputLang();
 
     return (
         <div className={`space-y-1 ${className}`}>
@@ -33,6 +35,7 @@ export function Input({
                 )}
                 <input
                     id={inputId}
+                    lang={langAttr || undefined}
                     className={`
             w-full px-4 py-2.5 rounded-xl border transition-all duration-200
             ${prefix ? 'pl-8' : ''}

@@ -1,1 +1,2 @@
-export { LineChart, ComparisonChart, DoughnutChart } from './Charts';
+export { LineChart, ComparisonChart, DoughnutChart, AllocationChart } from './Charts';
+

@@ -40,9 +40,13 @@ export interface InvestmentState {
     linkedToLoan: boolean; // For comparison: use loan amount as investment
 }
 
+// Locale type for number formatting
+export type LocalePreference = 'en-US' | 'de-DE' | 'browser';
+
 // Currency State (Centralized)
 export interface CurrencyState {
     eurToInr: number;
+    locale: LocalePreference;
 }
 
 // Combined App State
@@ -94,6 +98,7 @@ const defaultInvestmentState: InvestmentState = {
 
 const defaultCurrencyState: CurrencyState = {
     eurToInr: DEFAULT_CURRENCY.eurToInr,
+    locale: 'en-US',
 };
 
 const AppContext = createContext<AppState | undefined>(undefined);

@@ -1,15 +1,20 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import Link from 'next/link';
-import { Card, CardHeader, StatCard, Hint, Input } from '@/components/ui';
-import { formatEUR, formatDuration } from '@/lib/formatters';
+import { Card, CardHeader, StatCard, Hint, Input, Select } from '@/components/ui';
+import { formatEUR, formatDuration, setGlobalLocale } from '@/lib/formatters';
 import { DEFAULT_LOAN, HINTS } from '@/lib/constants';
 import { calculateEMI, calculatePortfolioMaturity } from '@/lib/calculations';
-import { useAppState } from '@/context/AppContext';
+import { useAppState, LocalePreference } from '@/context/AppContext';
 
 export default function DashboardPage() {
   const { investment, currency, setCurrency } = useAppState();
+
+  // Sync locale with formatters
+  useEffect(() => {
+    setGlobalLocale(currency.locale);
+  }, [currency.locale]);
 
   // Calculate summary values
   const loanEMI = calculateEMI(DEFAULT_LOAN.principal, DEFAULT_LOAN.annualRate, DEFAULT_LOAN.termMonths);
@@ -164,6 +169,17 @@ export default function DashboardPage() {
             value={currency.eurToInr}
             onChange={(e) => setCurrency({ eurToInr: Number(e.target.value) })}
             hint="Used across all calculations"
+          />
+          <Select
+            label="Number Format"
+            options={[
+              { value: 'en-US', label: 'English (1,234.56)' },
+              { value: 'de-DE', label: 'German (1.234,56)' },
+              { value: 'browser', label: 'Browser Default' },
+            ]}
+            value={currency.locale}
+            onChange={(e) => setCurrency({ locale: e.target.value as LocalePreference })}
+            hint="Decimal and thousand separators"
           />
         </div>
       </Card>
