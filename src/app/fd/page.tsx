@@ -118,18 +118,31 @@ export default function InvestmentPage() {
             investment.compoundingFrequency
         );
 
+        // Calculate weighted expense ratio
+        const totalPct = allocationsWithAmount.reduce((s, a) => s + a.percentage, 0);
+        const weightedExpenseRatio = totalPct > 0
+            ? allocationsWithAmount.reduce((sum, a) => sum + (a.percentage * a.expenseRatio), 0) / totalPct
+            : 0;
+
         let totalTaxPaid = 0;
+        let totalExpenseCost = 0;
         const afterTaxInterest = allocationsWithAmount.reduce((sum, a, i) => {
             const allocationInterest = result.allocationReturns[i]?.interest || 0;
-            const tax = allocationInterest * (a.taxRate / 100);
+            // Expense ratio reduces effective return
+            const expenseCost = a.amount * (a.expenseRatio / 100) * (investment.termMonths / 12);
+            totalExpenseCost += expenseCost;
+            const netInterest = allocationInterest - expenseCost;
+            const tax = netInterest * (a.taxRate / 100);
             totalTaxPaid += tax;
-            return sum + (allocationInterest - tax);
+            return sum + (netInterest - tax);
         }, 0);
 
         return {
             ...result,
             totalAmount,
             totalTaxPaid,
+            totalExpenseCost,
+            weightedExpenseRatio: Math.round(weightedExpenseRatio * 100) / 100,
             afterTaxInterest,
             netMaturity: totalAmount + afterTaxInterest,
         };
@@ -177,7 +190,7 @@ export default function InvestmentPage() {
                             title={`${RISK_LABELS[inst.riskLevel]} Risk`}
                         />
                         <div>
-                            <h4 className="font-semibold text-gray-800">{inst.name}</h4>
+                            <h4 className="font-semibold text-gray-800">{alloc.instanceLabel || inst.name}</h4>
                             <div className="flex items-center gap-2">
                                 <span
                                     className="text-xs px-2 py-0.5 rounded"
@@ -252,16 +265,25 @@ export default function InvestmentPage() {
                         onChange={(e) => updateAllocation(mode, index, { taxRate: Number(e.target.value) })}
                     />
                 </div>
+                {/* Expense Ratio - only show for MF/ETF/Gold */}
+                {(alloc.instrumentId === 'mutual_funds' || alloc.instrumentId === 'gold') && (
+                    <div className="mt-2">
+                        <Input
+                            label="Expense Ratio %"
+                            type="number"
+                            step="0.01"
+                            value={alloc.expenseRatio}
+                            onChange={(e) => updateAllocation(mode, index, { expenseRatio: Number(e.target.value) })}
+                        />
+                    </div>
+                )}
             </div>
         );
     };
 
-    const getLumpsumInstruments = () => getInstrumentsByMode('lumpsum').filter(
-        i => !investment.lumpsum.allocations.some(a => a.instrumentId === i.id)
-    );
-    const getSIPInstruments = () => getInstrumentsByMode('sip').filter(
-        i => !investment.sip.allocations.some(a => a.instrumentId === i.id)
-    );
+    // Allow adding multiple of same instrument type
+    const getLumpsumInstruments = () => getInstrumentsByMode('lumpsum');
+    const getSIPInstruments = () => getInstrumentsByMode('sip');
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 p-4 pb-24 md:pb-8">
@@ -448,9 +470,14 @@ export default function InvestmentPage() {
                             <StatCard
                                 label="Weighted CAGR"
                                 value={formatPercent(lumpsumResult.weightedRate)}
-                                subValue={`${formatDuration(investment.termMonths)}`}
+                                subValue={`Expense: ${formatPercent(lumpsumResult.weightedExpenseRatio)}`}
                             />
                         </div>
+                        {lumpsumResult.totalExpenseCost > 0 && (
+                            <Hint type="info" className="mt-2">
+                                📊 Expense ratio reduces gains by {formatEUR(lumpsumResult.totalExpenseCost)} over {formatDuration(investment.termMonths)}
+                            </Hint>
+                        )}
                     </>
                 )}
 

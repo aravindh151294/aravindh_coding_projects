@@ -16,13 +16,15 @@ export interface LoanState {
     extraPaymentTiming: 'before' | 'after' | 'both';
 }
 
-// Investment Allocation (with per-instrument tax rate)
+// Investment Allocation (with per-instrument tax rate and expense ratio)
 export interface InvestmentAllocation {
     instrumentId: string;
+    instanceLabel: string; // e.g., "FD #1", "MF #2"
     amount: number;
     percentage: number;
     annualRate: number;
     taxRate: number;
+    expenseRatio: number; // For MF/ETF, 0 for others
     country?: string;
 }
 
@@ -78,15 +80,18 @@ interface AppState {
     resetAll: () => void;
 }
 
-// Helper to create default allocation
-function createDefaultAllocation(instrumentId: string): InvestmentAllocation {
+// Helper to create default allocation with instance number
+function createDefaultAllocation(instrumentId: string, instanceNum: number = 1): InvestmentAllocation {
     const instrument = INVESTMENT_INSTRUMENTS.find(i => i.id === instrumentId);
+    const hasExpenseRatio = instrumentId === 'mutual_funds' || instrumentId === 'gold';
     return {
         instrumentId,
+        instanceLabel: `${instrument?.name || instrumentId} #${instanceNum}`,
         amount: 0,
         percentage: 100,
         annualRate: instrument?.defaultRate ?? 7,
         taxRate: instrument?.defaultTaxRate ?? 30,
+        expenseRatio: hasExpenseRatio ? 0.5 : 0, // Default 0.5% for MF/ETF, 0 for others
     };
 }
 
@@ -181,13 +186,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setInvestmentState(prev => {
             const stateKey = mode === 'lumpsum' ? 'lumpsum' : 'sip';
             const currentState = prev[stateKey];
+            // Count existing instances of this instrument
+            const existingCount = currentState.allocations.filter(a => a.instrumentId === instrumentId).length;
+            const instanceNum = existingCount + 1;
             return {
                 ...prev,
                 [stateKey]: {
                     ...currentState,
                     allocations: [
                         ...currentState.allocations,
-                        createDefaultAllocation(instrumentId),
+                        createDefaultAllocation(instrumentId, instanceNum),
                     ],
                 },
             };

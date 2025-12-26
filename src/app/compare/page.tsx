@@ -307,18 +307,31 @@ export default function ComparePage() {
                             <span className="text-sm text-gray-600">Rate adjustment:</span>
                             <span className="text-sm font-bold text-purple-600">±{whatIfAdjustment}%</span>
                         </div>
-                        <input
-                            type="range"
-                            min={0.25}
-                            max={5}
-                            step={0.25}
-                            value={whatIfAdjustment}
-                            onChange={(e) => setWhatIfAdjustment(Number(e.target.value))}
-                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                        />
-                        <div className="flex justify-between text-xs text-gray-400 mt-1">
-                            <span>0.25%</span>
-                            <span>5%</span>
+                        <div className="relative">
+                            {/* Gradient background */}
+                            <div
+                                className="absolute inset-0 h-3 rounded-full"
+                                style={{
+                                    background: 'linear-gradient(to right, #991b1b, #dc2626, #f97316, #facc15, #22c55e, #facc15, #f97316, #dc2626, #991b1b)'
+                                }}
+                            />
+                            <input
+                                type="range"
+                                min={0.25}
+                                max={5}
+                                step={0.25}
+                                value={whatIfAdjustment}
+                                onChange={(e) => setWhatIfAdjustment(Number(e.target.value))}
+                                className="relative w-full h-3 bg-transparent rounded-full appearance-none cursor-pointer"
+                                style={{
+                                    WebkitAppearance: 'none',
+                                }}
+                            />
+                        </div>
+                        <div className="flex justify-between text-xs mt-2">
+                            <span className="text-red-600 font-medium">0.25%</span>
+                            <span className="text-green-600 font-medium">Center</span>
+                            <span className="text-red-600 font-medium">5%</span>
                         </div>
                     </div>
 
