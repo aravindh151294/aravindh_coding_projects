@@ -40,9 +40,14 @@ export default function DashboardPage() {
     <div className="space-y-6">
       {/* Hero Section */}
       <div className="text-center py-8">
-        <h1 className="text-4xl md:text-5xl font-bold mb-4">
+        <h1 className="text-4xl md:text-5xl font-bold mb-2">
           <span className="gradient-text">FinDash</span>
         </h1>
+        <div className="flex items-center justify-center gap-2 mb-4">
+          <span className="px-2 py-0.5 text-[10px] font-mono tracking-widest text-gray-400 uppercase border border-gray-100 rounded-full bg-white shadow-sm">
+            Designed by Aravindh
+          </span>
+        </div>
         <p className="text-gray-600 text-lg max-w-2xl mx-auto mb-8">
           Your intelligent financial planning companion. Analyze loans, plan investments, and make smarter decisions.
         </p>
@@ -59,8 +64,8 @@ export default function DashboardPage() {
               key={mode.id}
               onClick={() => setComparisonMode(mode.id as any)}
               className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${investment.comparisonMode === mode.id
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'text-gray-600 hover:bg-gray-100'
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'text-gray-600 hover:bg-gray-100'
                 }`}
             >
               {mode.label}
@@ -104,38 +109,40 @@ export default function DashboardPage() {
 
       {/* Feature Cards */}
       <div className="grid md:grid-cols-2 gap-6">
-        {/* Loan Calculator Card */}
-        <Link href="/loan" className={`block card-hover ${!showLoan ? 'hidden md:block opacity-75' : ''}`}>
-          <Card className="h-full">
-            <CardHeader
-              title="Loan Calculator"
-              subtitle="Analyze 3 repayment strategies"
-              icon={<LoanIcon />}
-            />
-            <div className="space-y-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Scenario A</span>
-                <span className="font-medium">Original Schedule</span>
+        {/* Loan Calculator Card - Only show if relevant */}
+        {showLoan && (
+          <Link href="/loan" className="block card-hover">
+            <Card className="h-full">
+              <CardHeader
+                title="Loan Calculator"
+                subtitle="Analyze 3 repayment strategies"
+                icon={<LoanIcon />}
+              />
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Scenario A</span>
+                  <span className="font-medium">Original Schedule</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Scenario B</span>
+                  <span className="font-medium">With Prepayment</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Scenario C</span>
+                  <span className="font-medium">Aggressive Repayment</span>
+                </div>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Scenario B</span>
-                <span className="font-medium">With Prepayment</span>
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <span className="text-blue-600 font-medium text-sm flex items-center gap-1">
+                  Open Calculator
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Scenario C</span>
-                <span className="font-medium">Aggressive Repayment</span>
-              </div>
-            </div>
-            <div className="mt-4 pt-4 border-t border-gray-100">
-              <span className="text-blue-600 font-medium text-sm flex items-center gap-1">
-                Open Calculator
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </span>
-            </div>
-          </Card>
-        </Link>
+            </Card>
+          </Link>
+        )}
 
         {/* Investment Planner Card */}
         <Link href="/fd" className="block card-hover">
