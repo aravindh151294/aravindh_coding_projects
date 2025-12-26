@@ -52,10 +52,14 @@ export interface InvestmentState {
     activeTab: 'lumpsum' | 'sip';
     lumpsum: LumpsumState;
     sip: SIPState;
+    comparisonMode: ComparisonMode;
 }
 
 // Locale type for number formatting
 export type LocalePreference = 'en-US' | 'de-DE' | 'browser';
+
+// Comparison Mode
+export type ComparisonMode = 'loan_lumpsum_sip' | 'lumpsum_sip' | 'lumpsum_only' | 'sip_only';
 
 // Currency State (Centralized)
 export interface CurrencyState {
@@ -72,6 +76,7 @@ interface AppState {
     setInvestment: (investment: Partial<InvestmentState>) => void;
     setLumpsum: (lumpsum: Partial<LumpsumState>) => void;
     setSIP: (sip: Partial<SIPState>) => void;
+    setComparisonMode: (mode: ComparisonMode) => void;
     setCurrency: (currency: Partial<CurrencyState>) => void;
     updateAllocation: (mode: InvestmentMode, index: number, updates: Partial<InvestmentAllocation>) => void;
     addAllocation: (mode: InvestmentMode, instrumentId: string) => void;
@@ -117,7 +122,7 @@ const defaultInvestmentState: InvestmentState = {
     activeTab: 'lumpsum',
     lumpsum: {
         totalAmount: DEFAULT_LOAN.principal,
-        linkedToLoan: false,
+        linkedToLoan: true, // Default to true for loan_lumpsum_sip mode
         inputMode: 'percentage',
         allocations: [{ ...createDefaultAllocation(lumpsumInstruments[0]?.id || 'fd'), annualRate: DEFAULT_LOAN.annualRate }],
     },
@@ -126,6 +131,7 @@ const defaultInvestmentState: InvestmentState = {
         inputMode: 'percentage',
         allocations: [{ ...createDefaultAllocation(sipInstruments[0]?.id || 'rd'), annualRate: DEFAULT_LOAN.annualRate }],
     },
+    comparisonMode: 'loan_lumpsum_sip',
 };
 
 const defaultCurrencyState: CurrencyState = {
@@ -164,6 +170,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const setCurrency = (updates: Partial<CurrencyState>) => {
         setCurrencyState(prev => ({ ...prev, ...updates }));
+    };
+
+    const setComparisonMode = (mode: ComparisonMode) => {
+        setInvestmentState(prev => {
+            const updates: Partial<InvestmentState> = { comparisonMode: mode };
+            // Auto-update linkedToLoan based on mode
+            if (mode === 'loan_lumpsum_sip') {
+                updates.lumpsum = { ...prev.lumpsum, linkedToLoan: true };
+            } else if (mode === 'lumpsum_sip') {
+                updates.lumpsum = { ...prev.lumpsum, linkedToLoan: false };
+            }
+            // For other modes, we keep existing linked state or could force it off. 
+            // Keeping it as is allows flexibility unless specific behavior needed.
+            return {
+                ...prev,
+                ...updates,
+            };
+        });
     };
 
     const updateAllocation = (mode: InvestmentMode, index: number, updates: Partial<InvestmentAllocation>) => {
@@ -272,6 +296,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             setInvestment,
             setLumpsum,
             setSIP,
+            setComparisonMode,
             setCurrency,
             updateAllocation,
             addAllocation,

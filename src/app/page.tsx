@@ -9,7 +9,7 @@ import { calculateEMI, calculatePortfolioMaturity } from '@/lib/calculations';
 import { useAppState, LocalePreference } from '@/context/AppContext';
 
 export default function DashboardPage() {
-  const { investment, loan, currency, setCurrency } = useAppState();
+  const { investment, loan, currency, setCurrency, setComparisonMode } = useAppState();
   const { formatEUR } = useFormatters();
 
   // Calculate summary values
@@ -34,6 +34,8 @@ export default function DashboardPage() {
     investment.compoundingFrequency
   );
 
+  const showLoan = investment.comparisonMode === 'loan_lumpsum_sip';
+
   return (
     <div className="space-y-6">
       {/* Hero Section */}
@@ -41,25 +43,50 @@ export default function DashboardPage() {
         <h1 className="text-4xl md:text-5xl font-bold mb-4">
           <span className="gradient-text">FinDash</span>
         </h1>
-        <p className="text-gray-600 text-lg max-w-2xl mx-auto">
+        <p className="text-gray-600 text-lg max-w-2xl mx-auto mb-8">
           Your intelligent financial planning companion. Analyze loans, plan investments, and make smarter decisions.
         </p>
+
+        {/* Comparison Mode Selector */}
+        <div className="max-w-3xl mx-auto bg-white p-2 rounded-xl shadow-lg border border-gray-100 flex flex-wrap gap-2 justify-center">
+          {[
+            { id: 'loan_lumpsum_sip', label: 'Loan + Lumpsum vs SIP' },
+            { id: 'lumpsum_sip', label: 'Lumpsum vs SIP' },
+            { id: 'lumpsum_only', label: 'Lumpsum Analysis' },
+            { id: 'sip_only', label: 'SIP Analysis' },
+          ].map((mode) => (
+            <button
+              key={mode.id}
+              onClick={() => setComparisonMode(mode.id as any)}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${investment.comparisonMode === mode.id
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'text-gray-600 hover:bg-gray-100'
+                }`}
+            >
+              {mode.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Quick Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard
-          label="Default Loan EMI"
-          value={formatEUR(loanEMI)}
-          subValue={formatDuration(DEFAULT_LOAN.termMonths)}
-          icon={<LoanIcon />}
-        />
-        <StatCard
-          label="Total Interest"
-          value={formatEUR(totalLoanInterest)}
-          trend="down"
-          icon={<InterestIcon />}
-        />
+        {showLoan && (
+          <>
+            <StatCard
+              label="Loan EMI"
+              value={formatEUR(loanEMI)}
+              subValue={formatDuration(loan.termMonths)}
+              icon={<LoanIcon />}
+            />
+            <StatCard
+              label="Total Interest"
+              value={formatEUR(totalLoanInterest)}
+              trend="down"
+              icon={<InterestIcon />}
+            />
+          </>
+        )}
         <StatCard
           label="Portfolio Value"
           value={formatEUR(portfolioResult.maturityAmount)}
@@ -78,7 +105,7 @@ export default function DashboardPage() {
       {/* Feature Cards */}
       <div className="grid md:grid-cols-2 gap-6">
         {/* Loan Calculator Card */}
-        <Link href="/loan" className="block card-hover">
+        <Link href="/loan" className={`block card-hover ${!showLoan ? 'hidden md:block opacity-75' : ''}`}>
           <Card className="h-full">
             <CardHeader
               title="Loan Calculator"

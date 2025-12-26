@@ -19,6 +19,11 @@ export default function ComparePage() {
 
     const convertToINR = (eur: number) => eur * currency.eurToInr;
 
+    const { comparisonMode } = investment;
+    const showLumpsum = comparisonMode !== 'sip_only';
+    const showSIP = comparisonMode !== 'lumpsum_only';
+    const showComparison = comparisonMode === 'loan_lumpsum_sip' || comparisonMode === 'lumpsum_sip';
+
     // Calculate Lumpsum results
     const lumpsumResult = useMemo(() => {
         const totalAmount = investment.lumpsum.linkedToLoan
@@ -185,41 +190,85 @@ export default function ComparePage() {
                     </p>
                 </div>
 
-                {/* Mode Indicator */}
-                {investment.lumpsum.linkedToLoan && (
-                    <div className="space-y-4 mb-6">
-                        <Hint type="info">
-                            🔗 **Linked Mode**: Lumpsum gain is reduced by loan interest ({formatEUR(loanInterest)}) for fair comparison.
-                        </Hint>
+                {/* Comparison Result Header - Only show if doing comparison */}
+                {showComparison && (
+                    <Card className="bg-white border-l-4 border-l-blue-500 overflow-hidden relative">
+                        {/* Winner Background Effect */}
+                        <div className={`absolute top-0 right-0 w-32 h-32 opacity-10 rounded-full blur-2xl transform translate-x-1/2 -translate-y-1/2 ${winner === 'lumpsum' ? 'bg-blue-500' : 'bg-green-500'
+                            }`} />
 
-                        <div className="flex items-center justify-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                            <span className="text-sm font-medium text-gray-700">Loan Repayment Strategy:</span>
-                            <div className="flex gap-2">
-                                {[
-                                    { id: 'A', label: 'Regular' },
-                                    { id: 'B', label: 'Lumpsum Prepay' },
-                                    { id: 'C', label: 'Extra EMI' },
-                                ].map((opt) => (
-                                    <button
-                                        key={opt.id}
-                                        onClick={() => setLoanScenario(opt.id as 'A' | 'B' | 'C')}
-                                        className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${loanScenario === opt.id
-                                                ? 'bg-blue-600 text-white'
-                                                : 'text-gray-600 hover:bg-gray-100'
-                                            }`}
-                                    >
-                                        {opt.label}
-                                    </button>
-                                ))}
+                        <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
+                            <div className="text-center md:text-left">
+                                <Badge className="mb-2 bg-gray-100 text-gray-600 hover:bg-gray-100">Net Difference</Badge>
+                                <h2 className="text-3xl font-bold text-gray-800">{formatEUR(difference)}</h2>
+                                <p className="text-gray-500 text-sm">
+                                    {winner === 'lumpsum'
+                                        ? `Lumpsum yields more gain over ${formatDuration(investment.termMonths)}`
+                                        : `SIP strategy wins by ${formatEUR(difference)}`
+                                    }
+                                </p>
+                            </div>
+
+                            <div className="flex items-center gap-4">
+                                <div className={`px-6 py-4 rounded-xl border-2 ${winner === 'lumpsum' ? 'border-blue-500 bg-blue-50' : 'border-dashed border-gray-200 opacity-60'}`}>
+                                    <h3 className="text-xs uppercase tracking-wider font-semibold text-gray-500 mb-1">Lumpsum (Net)</h3>
+                                    <p className="text-xl font-bold text-blue-700">{formatEUR(linkedNetGain)}</p>
+                                </div>
+                                <div className="text-gray-300 font-bold text-xl">VS</div>
+                                <div className={`px-6 py-4 rounded-xl border-2 ${winner === 'sip' ? 'border-green-500 bg-green-50' : 'border-dashed border-gray-200 opacity-60'}`}>
+                                    <h3 className="text-xs uppercase tracking-wider font-semibold text-gray-500 mb-1">SIP (Total)</h3>
+                                    <p className="text-xl font-bold text-green-700">{formatEUR(sipGain)}</p>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                )}
+                    </Card>
+                )
+                }
 
-                {/* Duration Lock Info */}
-                <Hint type="tip">
-                    ℹ️ Duration locked at **{formatDuration(investment.termMonths)}** for both strategies. Change it in the Invest page.
-                </Hint>
+                {/* Mode Indicator & Duration Lock Info */}
+                <div className="space-y-4">
+                    {showComparison && investment.lumpsum.linkedToLoan && (
+                        <div className="space-y-4 mb-6">
+                            <Hint type="info">
+                                🔗 **Linked Mode**: Lumpsum gain is reduced by loan interest ({formatEUR(loanInterest)}) for fair comparison.
+                            </Hint>
+
+                            <div className="flex items-center justify-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                                <span className="text-sm font-medium text-gray-700">Loan Repayment Strategy:</span>
+                                <div className="flex gap-2">
+                                    {[
+                                        { id: 'A', label: 'Regular' },
+                                        { id: 'B', label: 'Lumpsum Prepay' },
+                                        { id: 'C', label: 'Extra EMI' },
+                                    ].map((opt) => (
+                                        <button
+                                            key={opt.id}
+                                            onClick={() => setLoanScenario(opt.id as 'A' | 'B' | 'C')}
+                                            className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${loanScenario === opt.id
+                                                ? 'bg-blue-600 text-white'
+                                                : 'text-gray-600 hover:bg-gray-100'
+                                                }`}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {!showComparison && (
+                        <Hint type="info">
+                            Analysis Mode: {showLumpsum ? 'Lumpsum Only' : 'SIP Only'}
+                        </Hint>
+                    )}
+
+                    {showComparison && (
+                        <div className="text-center bg-gray-50 py-2 rounded-lg text-xs text-gray-500 border border-gray-200 border-dashed">
+                            Wait Duration locked at <strong>{formatDuration(investment.termMonths)}</strong> for both instruments
+                        </div>
+                    )}
+                </div>
 
                 {/* Net Gains Comparison */}
                 <div className="grid md:grid-cols-2 gap-4">
@@ -299,35 +348,40 @@ export default function ComparePage() {
                 </Card>
 
                 {/* Break-even Timeline */}
-                <Card>
-                    <CardHeader title="Break-even Timeline" subtitle="When SIP catches up to Lumpsum in absolute value" />
-                    <div className="space-y-4">
-                        {comparisonData.breakEvenMonth > 0 ? (
-                            <div className="p-4 bg-yellow-50 rounded-xl">
-                                <p className="text-yellow-800">
-                                    📊 SIP value equals Lumpsum at <strong>month {comparisonData.breakEvenMonth}</strong> ({formatDuration(comparisonData.breakEvenMonth)})
-                                </p>
-                            </div>
-                        ) : (
-                            <div className="p-4 bg-blue-50 rounded-xl">
-                                <p className="text-blue-800">
-                                    📈 Lumpsum stays ahead throughout the {formatDuration(investment.termMonths)} period
-                                </p>
-                            </div>
-                        )}
+                {/* Break-even Timeline - Only show for comparison */}
+                {
+                    showComparison && (
+                        <Card>
+                            <CardHeader title="Break-even Timeline" subtitle="When SIP catches up to Lumpsum in absolute value" />
+                            <div className="space-y-4">
+                                {comparisonData.breakEvenMonth > 0 ? (
+                                    <div className="p-4 bg-yellow-50 rounded-xl">
+                                        <p className="text-yellow-800">
+                                            📊 SIP value equals Lumpsum at <strong>month {comparisonData.breakEvenMonth}</strong> ({formatDuration(comparisonData.breakEvenMonth)})
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="p-4 bg-blue-50 rounded-xl">
+                                        <p className="text-blue-800">
+                                            📈 Lumpsum stays ahead throughout the {formatDuration(investment.termMonths)} period
+                                        </p>
+                                    </div>
+                                )}
 
-                        {/* Value Progression */}
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                            {comparisonData.data.filter((_, i) => i % 12 === 0 || i === comparisonData.data.length - 1).map((d) => (
-                                <div key={d.month} className="text-center p-2 bg-gray-50 rounded-lg">
-                                    <p className="text-xs text-gray-500">Yr {Math.floor(d.month / 12)}</p>
-                                    <p className="text-sm text-blue-600 font-medium">{formatEUR(d.lumpsum)}</p>
-                                    <p className="text-sm text-green-600 font-medium">{formatEUR(d.sip)}</p>
+                                {/* Value Progression */}
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                                    {comparisonData.data.filter((_, i) => i % 12 === 0 || i === comparisonData.data.length - 1).map((d) => (
+                                        <div key={d.month} className="text-center p-2 bg-gray-50 rounded-lg">
+                                            <p className="text-xs text-gray-500">Yr {Math.floor(d.month / 12)}</p>
+                                            <p className="text-sm text-blue-600 font-medium">{formatEUR(d.lumpsum)}</p>
+                                            <p className="text-sm text-green-600 font-medium">{formatEUR(d.sip)}</p>
+                                        </div>
+                                    ))}
                                 </div>
-                            ))}
-                        </div>
-                    </div>
-                </Card>
+                            </div>
+                        </Card>
+                    )
+                }
 
                 {/* What-If Sensitivity Analysis */}
                 <Card>
@@ -369,19 +423,25 @@ export default function ComparePage() {
                         <div className="p-4 bg-red-50 rounded-xl text-center">
                             <p className="text-xs text-red-600 font-medium mb-2">-{whatIfAdjustment}% Rate</p>
                             <div className="space-y-2">
-                                <div>
-                                    <p className="text-xs text-gray-500">Lumpsum Net</p>
-                                    <p className={`text-sm font-bold ${whatIfScenarios.lower.lumpsum >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                        {whatIfScenarios.lower.lumpsum >= 0 ? '+' : ''}{formatEUR(whatIfScenarios.lower.lumpsum)}
-                                    </p>
-                                </div>
-                                <div>
-                                    <p className="text-xs text-gray-500">SIP Gain</p>
-                                    <p className="text-sm font-bold text-green-600">+{formatEUR(whatIfScenarios.lower.sip)}</p>
-                                </div>
-                                <Badge variant={whatIfScenarios.lower.lumpsum >= whatIfScenarios.lower.sip ? 'default' : 'success'}>
-                                    {whatIfScenarios.lower.lumpsum >= whatIfScenarios.lower.sip ? 'Lumpsum' : 'SIP'}
-                                </Badge>
+                                {showLumpsum && (
+                                    <div>
+                                        <p className="text-xs text-gray-500">Lumpsum Net</p>
+                                        <p className={`text-sm font-bold ${whatIfScenarios.lower.lumpsum >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {whatIfScenarios.lower.lumpsum >= 0 ? '+' : ''}{formatEUR(whatIfScenarios.lower.lumpsum)}
+                                        </p>
+                                    </div>
+                                )}
+                                {showSIP && (
+                                    <div>
+                                        <p className="text-xs text-gray-500">SIP Gain</p>
+                                        <p className="text-sm font-bold text-green-600">+{formatEUR(whatIfScenarios.lower.sip)}</p>
+                                    </div>
+                                )}
+                                {showComparison && (
+                                    <Badge variant={whatIfScenarios.lower.lumpsum >= whatIfScenarios.lower.sip ? 'default' : 'success'}>
+                                        {whatIfScenarios.lower.lumpsum >= whatIfScenarios.lower.sip ? 'Lumpsum' : 'SIP'}
+                                    </Badge>
+                                )}
                             </div>
                         </div>
 
@@ -389,19 +449,25 @@ export default function ComparePage() {
                         <div className="p-4 bg-purple-50 rounded-xl text-center ring-2 ring-purple-400">
                             <p className="text-xs text-purple-600 font-medium mb-2">Current</p>
                             <div className="space-y-2">
-                                <div>
-                                    <p className="text-xs text-gray-500">Lumpsum Net</p>
-                                    <p className={`text-sm font-bold ${whatIfScenarios.current.lumpsum >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                        {whatIfScenarios.current.lumpsum >= 0 ? '+' : ''}{formatEUR(whatIfScenarios.current.lumpsum)}
-                                    </p>
-                                </div>
-                                <div>
-                                    <p className="text-xs text-gray-500">SIP Gain</p>
-                                    <p className="text-sm font-bold text-green-600">+{formatEUR(whatIfScenarios.current.sip)}</p>
-                                </div>
-                                <Badge variant={winner === 'lumpsum' ? 'default' : 'success'}>
-                                    🏆 {winner === 'lumpsum' ? 'Lumpsum' : 'SIP'}
-                                </Badge>
+                                {showLumpsum && (
+                                    <div>
+                                        <p className="text-xs text-gray-500">Lumpsum Net</p>
+                                        <p className={`text-sm font-bold ${whatIfScenarios.current.lumpsum >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {whatIfScenarios.current.lumpsum >= 0 ? '+' : ''}{formatEUR(whatIfScenarios.current.lumpsum)}
+                                        </p>
+                                    </div>
+                                )}
+                                {showSIP && (
+                                    <div>
+                                        <p className="text-xs text-gray-500">SIP Gain</p>
+                                        <p className="text-sm font-bold text-green-600">+{formatEUR(whatIfScenarios.current.sip)}</p>
+                                    </div>
+                                )}
+                                {showComparison && (
+                                    <Badge variant={whatIfScenarios.current.lumpsum >= whatIfScenarios.current.sip ? 'default' : 'success'}>
+                                        🏆 {whatIfScenarios.current.lumpsum >= whatIfScenarios.current.sip ? 'Lumpsum' : 'SIP'}
+                                    </Badge>
+                                )}
                             </div>
                         </div>
 
@@ -409,19 +475,25 @@ export default function ComparePage() {
                         <div className="p-4 bg-green-50 rounded-xl text-center">
                             <p className="text-xs text-green-600 font-medium mb-2">+{whatIfAdjustment}% Rate</p>
                             <div className="space-y-2">
-                                <div>
-                                    <p className="text-xs text-gray-500">Lumpsum Net</p>
-                                    <p className={`text-sm font-bold ${whatIfScenarios.higher.lumpsum >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                        {whatIfScenarios.higher.lumpsum >= 0 ? '+' : ''}{formatEUR(whatIfScenarios.higher.lumpsum)}
-                                    </p>
-                                </div>
-                                <div>
-                                    <p className="text-xs text-gray-500">SIP Gain</p>
-                                    <p className="text-sm font-bold text-green-600">+{formatEUR(whatIfScenarios.higher.sip)}</p>
-                                </div>
-                                <Badge variant={whatIfScenarios.higher.lumpsum >= whatIfScenarios.higher.sip ? 'default' : 'success'}>
-                                    {whatIfScenarios.higher.lumpsum >= whatIfScenarios.higher.sip ? 'Lumpsum' : 'SIP'}
-                                </Badge>
+                                {showLumpsum && (
+                                    <div>
+                                        <p className="text-xs text-gray-500">Lumpsum Net</p>
+                                        <p className={`text-sm font-bold ${whatIfScenarios.higher.lumpsum >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {whatIfScenarios.higher.lumpsum >= 0 ? '+' : ''}{formatEUR(whatIfScenarios.higher.lumpsum)}
+                                        </p>
+                                    </div>
+                                )}
+                                {showSIP && (
+                                    <div>
+                                        <p className="text-xs text-gray-500">SIP Gain</p>
+                                        <p className="text-sm font-bold text-green-600">+{formatEUR(whatIfScenarios.higher.sip)}</p>
+                                    </div>
+                                )}
+                                {showComparison && (
+                                    <Badge variant={whatIfScenarios.higher.lumpsum >= whatIfScenarios.higher.sip ? 'default' : 'success'}>
+                                        {whatIfScenarios.higher.lumpsum >= whatIfScenarios.higher.sip ? 'Lumpsum' : 'SIP'}
+                                    </Badge>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -447,7 +519,7 @@ export default function ComparePage() {
                         subValue={winner === 'lumpsum' ? 'Lumpsum ahead' : 'SIP ahead'}
                     />
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 }

@@ -1,6 +1,10 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, {
+    useEffect,
+    useMemo,
+    useState
+} from 'react';
 import { Card, CardHeader, Input, Select, Toggle, Hint, StatCard, Tabs, Badge } from '@/components/ui';
 import { useAppState, InvestmentAllocation } from '@/context/AppContext';
 import { useFormatters, formatDuration } from '@/hooks/useFormatters';
@@ -14,18 +18,44 @@ import { getInstrumentById, getInstrumentsByMode, RISK_LABELS, RISK_COLORS, Inve
 export default function InvestmentPage() {
     const {
         investment,
+        loan, // Ensure loan is destructured
+        currency,
         setInvestment,
         setLumpsum,
         setSIP,
+        removeAllocation,
         updateAllocation,
         addAllocation,
-        removeAllocation,
-        loan,
-        currency,
+        recalculateAllocations
     } = useAppState();
-    const { formatEUR, formatINR, formatPercent } = useFormatters();
+    const { formatEUR, formatPercent, formatINR } = useFormatters();
+
+    // Removed invalid hook call: const { getInstrumentsByMode, getInstrumentById } = useRiskProfiles();
 
     const convertToINR = (eur: number) => eur * currency.eurToInr;
+
+    // Determine visible tabs based on comparison mode
+    const visibleTabs = useMemo(() => {
+        const mode = investment.comparisonMode;
+        if (mode === 'lumpsum_only') return [{ id: 'lumpsum', label: 'Lumpsum' }];
+        if (mode === 'sip_only') return [{ id: 'sip', label: 'SIP' }];
+        return [
+            { id: 'lumpsum', label: 'Lumpsum' },
+            { id: 'sip', label: 'SIP' },
+        ];
+    }, [investment.comparisonMode]);
+
+    // Force active tab switch if current tab is not visible
+    useEffect(() => {
+        const isLumpsumVisible = visibleTabs.some(t => t.id === 'lumpsum');
+        const isSIPVisible = visibleTabs.some(t => t.id === 'sip');
+
+        if (investment.activeTab === 'lumpsum' && !isLumpsumVisible) {
+            setInvestment({ activeTab: 'sip' });
+        } else if (investment.activeTab === 'sip' && !isSIPVisible) {
+            setInvestment({ activeTab: 'lumpsum' });
+        }
+    }, [visibleTabs, investment.activeTab, setInvestment]);
 
     // Get effective lumpsum amount
     const getLumpsumAmount = () => investment.lumpsum.linkedToLoan
@@ -314,11 +344,9 @@ export default function InvestmentPage() {
                 </div>
 
                 {/* Tabs */}
+                {/* Tabs */}
                 <Tabs
-                    tabs={[
-                        { id: 'lumpsum', label: 'Lumpsum' },
-                        { id: 'sip', label: 'SIP' },
-                    ]}
+                    tabs={visibleTabs}
                     activeTab={investment.activeTab}
                     onChange={(tab) => setInvestment({ activeTab: tab as 'lumpsum' | 'sip' })}
                 />
@@ -372,20 +400,18 @@ export default function InvestmentPage() {
                         <Card>
                             <CardHeader title="Lumpsum Investment" subtitle="One-time investment allocation" />
 
-                            {/* Linked to Loan Toggle */}
-                            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl">
-                                <div className="flex items-center justify-between">
+                            {investment.lumpsum.linkedToLoan && (
+                                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-3">
+                                    <span className="text-xl">🔗</span>
                                     <div>
-                                        <span className="text-sm font-medium text-blue-800">Linked to Loan</span>
-                                        <p className="text-xs text-blue-600">Amount matches your loan principal</p>
+                                        <h4 className="text-sm font-semibold text-blue-900">Linked to Loan</h4>
+                                        <p className="text-xs text-blue-700">
+                                            Total amount is synchronized with your loan principal.
+                                            To change this, switch comparison mode in Dashboard.
+                                        </p>
                                     </div>
-                                    <Toggle
-                                        label=""
-                                        checked={investment.lumpsum.linkedToLoan}
-                                        onChange={(v) => setLumpsum({ linkedToLoan: v })}
-                                    />
                                 </div>
-                            </div>
+                            )}
 
                             {/* Input Mode Toggle */}
                             <div className="flex items-center justify-between mb-4 p-3 bg-gray-50 rounded-xl">
