@@ -156,14 +156,33 @@ export default function InvestmentPage() {
             percentage: a.percentage,
             annualRate: a.annualRate,
             taxRate: a.taxRate,
+            expenseRatio: a.expenseRatio,
         }));
 
-        return calculateSIPPortfolioMaturity(
+        const result = calculateSIPPortfolioMaturity(
             investment.sip.monthlyAmount,
             allocationsWithTax,
             investment.termMonths,
             true
         );
+
+        // Calculate weighted expense ratio
+        const totalPct = allocationsWithTax.reduce((s, a) => s + a.percentage, 0);
+        const weightedExpenseRatio = totalPct > 0
+            ? allocationsWithTax.reduce((sum, a) => sum + (a.percentage * (a.expenseRatio || 0)), 0) / totalPct
+            : 0;
+
+        // Calculate Expense Cost (Rough Estimate: Gain without Expense - Gain with Expense)
+        // Since we don't have "without expense" result readily available without re-calculating,
+        // we can approximate or just defer it.
+        // Actually, we can calculate totalExpenseCost if needed, but for now just showing the ratio is enough as per request.
+        // Or we can be rigorous:
+        // Let's just return weightedExpenseRatio for now to match Lumpsum display requirements.
+
+        return {
+            ...result,
+            weightedExpenseRatio: Math.round(weightedExpenseRatio * 100) / 100,
+        };
     }, [investment.sip, investment.termMonths]);
 
     // Check if percentages sum to 100
@@ -582,7 +601,7 @@ export default function InvestmentPage() {
                             <StatCard
                                 label="Weighted XIRR"
                                 value={formatPercent(sipResult.weightedRate)}
-                                subValue={formatDuration(investment.termMonths)}
+                                subValue={`Expense: ${formatPercent(sipResult.weightedExpenseRatio || 0)}`}
                             />
                         </div>
 

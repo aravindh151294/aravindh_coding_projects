@@ -423,6 +423,7 @@ export interface SIPAllocation {
   percentage: number;
   annualRate: number; // User's expected XIRR
   taxRate: number;
+  expenseRatio?: number;
 }
 
 /**
@@ -479,31 +480,42 @@ export function calculateSIPPortfolioMaturity(
   weightedRate: number;
   allocationReturns: { instrumentId: string; invested: number; maturity: number; gain: number; postTaxGain: number }[];
 } {
-  const allocationReturns = allocations.map(a => {
-    const monthlyAmount = (a.percentage / 100) * monthlyTotal;
-    const result = calculateSIPMaturity(monthlyAmount, a.annualRate, months);
-    const postTaxGain = applyTax ? result.gain * (1 - a.taxRate / 100) : result.gain;
+  let totalInvestedPortfolio = 0;
+  let totalGainPortfolio = 0;
+  const allocationReturns: { instrumentId: string; invested: number; maturity: number; gain: number; postTaxGain: number }[] = [];
 
-    return {
-      instrumentId: a.instrumentId,
-      invested: result.totalInvested,
-      maturity: result.maturityAmount,
-      gain: result.gain,
+  allocations.forEach((alloc) => {
+    const monthlyAmount = (alloc.percentage / 100) * monthlyTotal;
+    // Effective rate is annual rate minus expense ratio
+    const effectiveRate = alloc.annualRate - (alloc.expenseRatio || 0);
+
+    const { maturityAmount, totalInvested, gain } = calculateSIPMaturity(
+      monthlyAmount,
+      effectiveRate,
+      months
+    );
+
+    // Apply Tax on Gain
+    const postTaxGain = applyTax ? gain * (1 - alloc.taxRate / 100) : gain;
+
+    totalInvestedPortfolio += totalInvested;
+    totalGainPortfolio += postTaxGain;
+
+    allocationReturns.push({
+      instrumentId: alloc.instrumentId,
+      invested: totalInvested,
+      maturity: maturityAmount, // This is pre-tax maturity
+      gain: gain, // This is pre-tax gain
       postTaxGain: Math.round(postTaxGain * 100) / 100,
-    };
+    });
   });
 
-  const totalInvested = allocationReturns.reduce((sum, r) => sum + r.invested, 0);
-  const totalGain = applyTax
-    ? allocationReturns.reduce((sum, r) => sum + r.postTaxGain, 0)
-    : allocationReturns.reduce((sum, r) => sum + r.gain, 0);
-  const maturityAmount = totalInvested + totalGain;
   const weightedRate = calculateWeightedSIPRate(allocations);
 
   return {
-    maturityAmount: Math.round(maturityAmount * 100) / 100,
-    totalInvested,
-    totalGain: Math.round(totalGain * 100) / 100,
+    maturityAmount: Math.round((totalInvestedPortfolio + totalGainPortfolio) * 100) / 100,
+    totalInvested: Math.round(totalInvestedPortfolio * 100) / 100,
+    totalGain: Math.round(totalGainPortfolio * 100) / 100,
     weightedRate,
     allocationReturns,
   };
