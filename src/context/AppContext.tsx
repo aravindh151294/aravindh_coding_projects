@@ -110,21 +110,21 @@ const lumpsumInstruments = getInstrumentsByMode('lumpsum');
 const sipInstruments = getInstrumentsByMode('sip');
 
 const defaultInvestmentState: InvestmentState = {
-    termMonths: 60,
+    termMonths: DEFAULT_LOAN.termMonths,
     compoundingFrequency: 'quarterly',
     adjustInflation: false,
     inflationRate: 6,
     activeTab: 'lumpsum',
     lumpsum: {
-        totalAmount: 100000,
+        totalAmount: DEFAULT_LOAN.principal,
         linkedToLoan: false,
         inputMode: 'percentage',
-        allocations: [createDefaultAllocation(lumpsumInstruments[0]?.id || 'fd')],
+        allocations: [{ ...createDefaultAllocation(lumpsumInstruments[0]?.id || 'fd'), annualRate: DEFAULT_LOAN.annualRate }],
     },
     sip: {
-        monthlyAmount: 1000,
+        monthlyAmount: Math.round(DEFAULT_LOAN.principal / DEFAULT_LOAN.termMonths),
         inputMode: 'percentage',
-        allocations: [createDefaultAllocation(sipInstruments[0]?.id || 'rd')],
+        allocations: [{ ...createDefaultAllocation(sipInstruments[0]?.id || 'rd'), annualRate: DEFAULT_LOAN.annualRate }],
     },
 };
 

@@ -307,12 +307,12 @@ export default function ComparePage() {
                             <span className="text-sm text-gray-600">Rate adjustment:</span>
                             <span className="text-sm font-bold text-purple-600">±{whatIfAdjustment}%</span>
                         </div>
-                        <div className="relative">
+                        <div className="relative h-4 flex items-center">
                             {/* Gradient background */}
                             <div
-                                className="absolute inset-0 h-3 rounded-full"
+                                className="absolute w-full h-2 rounded-full"
                                 style={{
-                                    background: 'linear-gradient(to right, #991b1b, #dc2626, #f97316, #facc15, #22c55e, #facc15, #f97316, #dc2626, #991b1b)'
+                                    background: 'linear-gradient(to right, #22c55e, #84cc16, #facc15, #f97316, #ef4444)'
                                 }}
                             />
                             <input
@@ -322,15 +322,11 @@ export default function ComparePage() {
                                 step={0.25}
                                 value={whatIfAdjustment}
                                 onChange={(e) => setWhatIfAdjustment(Number(e.target.value))}
-                                className="relative w-full h-3 bg-transparent rounded-full appearance-none cursor-pointer"
-                                style={{
-                                    WebkitAppearance: 'none',
-                                }}
+                                className="relative w-full h-4 bg-transparent rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-purple-500 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:shadow-md [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-purple-500"
                             />
                         </div>
                         <div className="flex justify-between text-xs mt-2">
-                            <span className="text-red-600 font-medium">0.25%</span>
-                            <span className="text-green-600 font-medium">Center</span>
+                            <span className="text-green-600 font-medium">0.25%</span>
                             <span className="text-red-600 font-medium">5%</span>
                         </div>
                     </div>
