@@ -15,6 +15,7 @@ export default function ComparePage() {
     const { investment, loan, currency } = useAppState();
     const { formatEUR, formatPercent } = useFormatters();
     const [whatIfAdjustment, setWhatIfAdjustment] = useState(2);
+    const [loanScenario, setLoanScenario] = useState<'A' | 'B' | 'C'>('A');
 
     const convertToINR = (eur: number) => eur * currency.eurToInr;
 
@@ -72,8 +73,15 @@ export default function ComparePage() {
     }, [investment.sip, investment.termMonths]);
 
     // Loan interest calculation
-    const { scenarioA } = useLoanCalculator();
-    const loanInterest = scenarioA.totalInterest;
+    const { scenarioA, scenarioB, scenarioC } = useLoanCalculator();
+
+    const loanInterest = useMemo(() => {
+        switch (loanScenario) {
+            case 'B': return scenarioB.totalInterest;
+            case 'C': return scenarioC.totalInterest;
+            default: return scenarioA.totalInterest;
+        }
+    }, [loanScenario, scenarioA, scenarioB, scenarioC]);
 
     // Break-even comparison data
     const comparisonData = useMemo(() => {
@@ -179,9 +187,33 @@ export default function ComparePage() {
 
                 {/* Mode Indicator */}
                 {investment.lumpsum.linkedToLoan && (
-                    <Hint type="info">
-                        🔗 **Linked Mode**: Lumpsum gain is reduced by loan interest ({formatEUR(loanInterest)}) for fair comparison.
-                    </Hint>
+                    <div className="space-y-4 mb-6">
+                        <Hint type="info">
+                            🔗 **Linked Mode**: Lumpsum gain is reduced by loan interest ({formatEUR(loanInterest)}) for fair comparison.
+                        </Hint>
+
+                        <div className="flex items-center justify-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                            <span className="text-sm font-medium text-gray-700">Loan Repayment Strategy:</span>
+                            <div className="flex gap-2">
+                                {[
+                                    { id: 'A', label: 'Regular' },
+                                    { id: 'B', label: 'Lumpsum Prepay' },
+                                    { id: 'C', label: 'Extra EMI' },
+                                ].map((opt) => (
+                                    <button
+                                        key={opt.id}
+                                        onClick={() => setLoanScenario(opt.id as 'A' | 'B' | 'C')}
+                                        className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${loanScenario === opt.id
+                                                ? 'bg-blue-600 text-white'
+                                                : 'text-gray-600 hover:bg-gray-100'
+                                            }`}
+                                    >
+                                        {opt.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
                 )}
 
                 {/* Duration Lock Info */}
